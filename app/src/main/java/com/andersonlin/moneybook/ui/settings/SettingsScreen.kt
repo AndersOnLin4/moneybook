@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Upload
@@ -63,6 +64,7 @@ fun SettingsScreen(
     onManageAccounts: () -> Unit,
     onManageBudget: () -> Unit,
     onManageRecurring: () -> Unit,
+    onLockSettings: () -> Unit,
     onAbout: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
@@ -163,6 +165,21 @@ fun SettingsScreen(
                     SettingsRow(Icons.Filled.Download, "导入恢复备份") {
                         showImportConfirm = true
                     }
+                }
+            }
+
+            SettingsSectionHeader("安全")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column {
+                    SettingsRow(Icons.Filled.Lock, "应用锁（密码 / 指纹）", onLockSettings)
                 }
             }
 

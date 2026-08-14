@@ -11,6 +11,7 @@ import com.andersonlin.moneybook.ui.bill.BillListViewModel
 import com.andersonlin.moneybook.ui.budget.BudgetViewModel
 import com.andersonlin.moneybook.ui.category.CategoryViewModel
 import com.andersonlin.moneybook.ui.home.HomeViewModel
+import com.andersonlin.moneybook.ui.lock.LockViewModel
 import com.andersonlin.moneybook.ui.recurring.RecurringViewModel
 import com.andersonlin.moneybook.ui.settings.SettingsViewModel
 import com.andersonlin.moneybook.ui.stats.StatsViewModel
@@ -47,6 +48,7 @@ object AppViewModelProvider {
                 app().accountRepository
             )
         }
+        initializer { LockViewModel(app().lockSettingsRepository) }
     }
 }
 

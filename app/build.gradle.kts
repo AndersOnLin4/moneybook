@@ -97,8 +97,14 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // DataStore 偏好设置（主题模式）
+    // DataStore 偏好设置（主题模式、应用锁）
     implementation(libs.androidx.datastore.preferences)
+
+    // 应用锁指纹识别（Jetpack，免费）
+    implementation(libs.androidx.biometric)
+
+    // 桌面小组件（Jetpack Glance，免费）
+    implementation(libs.androidx.glance.appwidget)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

@@ -8,6 +8,7 @@ import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.BudgetRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
 import com.andersonlin.moneybook.data.repository.RecurringRepository
+import com.andersonlin.moneybook.data.settings.LockSettingsRepository
 import com.andersonlin.moneybook.data.settings.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ class MoneyBookApp : Application() {
         RecurringRepository(database, database.recurringBillDao())
     }
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
+    val lockSettingsRepository: LockSettingsRepository by lazy { LockSettingsRepository(this) }
     val backupManager: BackupManager by lazy { BackupManager(this, database) }
 
     override fun onCreate() {

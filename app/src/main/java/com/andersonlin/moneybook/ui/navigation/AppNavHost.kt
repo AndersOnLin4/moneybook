@@ -31,6 +31,7 @@ import com.andersonlin.moneybook.ui.bill.BillListScreen
 import com.andersonlin.moneybook.ui.budget.BudgetScreen
 import com.andersonlin.moneybook.ui.category.CategoryScreen
 import com.andersonlin.moneybook.ui.home.HomeScreen
+import com.andersonlin.moneybook.ui.lock.LockSettingsScreen
 import com.andersonlin.moneybook.ui.recurring.RecurringScreen
 import com.andersonlin.moneybook.ui.settings.AboutScreen
 import com.andersonlin.moneybook.ui.settings.SettingsScreen
@@ -46,6 +47,7 @@ object Routes {
     const val ACCOUNTS = "accounts"
     const val BUDGET = "budget"
     const val RECURRING = "recurring"
+    const val LOCK = "lock"
     const val ABOUT = "about"
     const val ADD_EDIT = "add_edit?billId={billId}&type={type}"
 
@@ -130,6 +132,7 @@ fun AppRoot() {
                     onManageAccounts = { navController.navigate(Routes.ACCOUNTS) },
                     onManageBudget = { navController.navigate(Routes.BUDGET) },
                     onManageRecurring = { navController.navigate(Routes.RECURRING) },
+                    onLockSettings = { navController.navigate(Routes.LOCK) },
                     onAbout = { navController.navigate(Routes.ABOUT) }
                 )
             }
@@ -165,6 +168,9 @@ fun AppRoot() {
             }
             composable(Routes.RECURRING) {
                 RecurringScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.LOCK) {
+                LockSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.ABOUT) {
                 AboutScreen(onBack = { navController.popBackStack() })
