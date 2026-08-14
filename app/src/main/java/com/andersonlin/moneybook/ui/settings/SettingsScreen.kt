@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
@@ -82,6 +83,7 @@ fun SettingsScreen(
     onManageGoals: () -> Unit,
     onManageReminder: () -> Unit,
     onLockSettings: () -> Unit,
+    onOnboarding: () -> Unit,
     onAbout: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
@@ -207,6 +209,8 @@ fun SettingsScreen(
             ) {
                 Column {
                     SettingsRow(Icons.Filled.Info, "关于", onAbout)
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    SettingsRow(Icons.Filled.School, "新手指引", onOnboarding)
                 }
             }
 

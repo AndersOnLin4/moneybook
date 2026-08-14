@@ -20,6 +20,7 @@ import androidx.lifecycle.lifecycleScope
 import com.andersonlin.moneybook.data.settings.ThemeMode
 import com.andersonlin.moneybook.ui.lock.LockScreen
 import com.andersonlin.moneybook.ui.navigation.AppRoot
+import com.andersonlin.moneybook.ui.onboarding.OnboardingScreen
 import com.andersonlin.moneybook.ui.theme.MoneyBookTheme
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -212,11 +213,18 @@ class MainActivity : FragmentActivity() {
             val lockEnabled by lockSettingsRepository.settings
                 .map { it.enabled }
                 .collectAsStateWithLifecycle(initialValue = null)
+            val firstLaunchDone by settingsRepository.firstLaunchDone
+                .collectAsStateWithLifecycle(initialValue = true)
 
             MoneyBookTheme(themeMode = themeMode) {
                 when {
                     // 设置尚未读取完成，先显示空白避免闪屏
                     lockEnabled == null -> Box(Modifier.fillMaxSize())
+                    !firstLaunchDone -> OnboardingScreen(
+                        onFinished = {
+                            lifecycleScope.launch { settingsRepository.setFirstLaunchDone() }
+                        }
+                    )
                     lockVisible.value && lockEnabled == true -> {
                         LockScreen(onUnlocked = { lockVisible.value = false })
                     }

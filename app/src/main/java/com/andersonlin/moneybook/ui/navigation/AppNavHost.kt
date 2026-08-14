@@ -38,6 +38,7 @@ import com.andersonlin.moneybook.ui.goal.GoalScreen
 import com.andersonlin.moneybook.ui.home.HomeScreen
 import com.andersonlin.moneybook.ui.ledger.LedgerScreen
 import com.andersonlin.moneybook.ui.lock.LockSettingsScreen
+import com.andersonlin.moneybook.ui.onboarding.OnboardingScreen
 import com.andersonlin.moneybook.ui.recurring.RecurringScreen
 import com.andersonlin.moneybook.ui.reminder.ReminderScreen
 import com.andersonlin.moneybook.ui.settings.AboutScreen
@@ -59,6 +60,7 @@ object Routes {
     const val GOALS = "goals"
     const val REMINDER = "reminder"
     const val CATEGORY_BUDGET = "category_budget"
+    const val ONBOARDING = "onboarding"
     const val ABOUT = "about"
     const val ADD_EDIT = "add_edit?billId={billId}&type={type}&date={date}"
 
@@ -161,6 +163,7 @@ fun AppRoot(addEvents: Flow<Unit> = emptyFlow()) {
                     onManageGoals = { navController.navigate(Routes.GOALS) },
                     onManageReminder = { navController.navigate(Routes.REMINDER) },
                     onLockSettings = { navController.navigate(Routes.LOCK) },
+                    onOnboarding = { navController.navigate(Routes.ONBOARDING) },
                     onAbout = { navController.navigate(Routes.ABOUT) }
                 )
             }
@@ -217,6 +220,9 @@ fun AppRoot(addEvents: Flow<Unit> = emptyFlow()) {
             }
             composable(Routes.REMINDER) {
                 ReminderScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.ONBOARDING) {
+                OnboardingScreen(onFinished = { navController.popBackStack() })
             }
             composable(Routes.ABOUT) {
                 AboutScreen(onBack = { navController.popBackStack() })

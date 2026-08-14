@@ -15,6 +15,7 @@ import com.andersonlin.moneybook.ui.goal.GoalViewModel
 import com.andersonlin.moneybook.ui.home.HomeViewModel
 import com.andersonlin.moneybook.ui.ledger.LedgerViewModel
 import com.andersonlin.moneybook.ui.lock.LockViewModel
+import com.andersonlin.moneybook.ui.onboarding.OnboardingViewModel
 import com.andersonlin.moneybook.ui.recurring.RecurringViewModel
 import com.andersonlin.moneybook.ui.reminder.ReminderViewModel
 import com.andersonlin.moneybook.ui.settings.SettingsViewModel
@@ -84,6 +85,17 @@ object AppViewModelProvider {
             GoalViewModel(app().goalRepository, app().savingDepositService, app().ledgerRepository)
         }
         initializer { ReminderViewModel(app().reminderRepository) }
+        initializer {
+            OnboardingViewModel(
+                app().ledgerRepository,
+                app().budgetRepository,
+                app().recurringRepository,
+                app().goalRepository,
+                app().categoryRepository,
+                app().lockSettingsRepository,
+                app().settingsRepository
+            )
+        }
     }
 }
 
