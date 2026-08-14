@@ -15,12 +15,15 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import java.time.LocalDate
 import java.time.YearMonth
 
 data class HomeUiState(
     val month: YearMonth = YearMonth.now(),
     val income: Long = 0L,
     val expense: Long = 0L,
+    val todayIncome: Long = 0L,
+    val todayExpense: Long = 0L,
     val budgetCents: Long? = null,
     val recentBills: List<Bill> = emptyList(),
     val categories: Map<Long, Category> = emptyMap(),
@@ -32,7 +35,7 @@ data class HomeUiState(
     val overspendCents: Long? get() = budgetCents?.let { (expense - it).takeIf { d -> d > 0 } }
 }
 
-/** 首页：当月收支结余 + 预算进度 + 最近账单 */
+/** 首页：当月收支结余 + 今日收支 + 预算进度 + 最近账单 */
 class HomeViewModel(
     private val billRepository: BillRepository,
     private val categoryRepository: CategoryRepository,
@@ -42,17 +45,36 @@ class HomeViewModel(
 
     private val month = YearMonth.now()
 
+    private data class SummaryData(
+        val income: Long,
+        val expense: Long,
+        val todayIncome: Long,
+        val todayExpense: Long
+    )
+
     val uiState: StateFlow<HomeUiState> = combine(
-        billRepository.getMonthSummary(month.startEpochDay(), month.endEpochDay()),
+        combine(
+            billRepository.getMonthSummary(month.startEpochDay(), month.endEpochDay()),
+            billRepository.getDaySummary(LocalDate.now().toEpochDay())
+        ) { monthSums, daySums ->
+            SummaryData(
+                income = monthSums.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L,
+                expense = monthSums.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L,
+                todayIncome = daySums.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L,
+                todayExpense = daySums.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L
+            )
+        },
         billRepository.getRecentBills(10),
         categoryRepository.getAllCategories(),
         accountRepository.getAllAccounts(),
         budgetRepository.getAllBudgets()
-    ) { sums, bills, cats, accounts, budgets ->
+    ) { summary, bills, cats, accounts, budgets ->
         HomeUiState(
             month = month,
-            income = sums.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L,
-            expense = sums.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L,
+            income = summary.income,
+            expense = summary.expense,
+            todayIncome = summary.todayIncome,
+            todayExpense = summary.todayExpense,
             budgetCents = budgets
                 .firstOrNull { it.year == month.year && it.month == month.monthValue }
                 ?.amountCents,

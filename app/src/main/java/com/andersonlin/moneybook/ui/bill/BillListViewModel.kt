@@ -22,8 +22,12 @@ import java.time.YearMonth
 /** 列表筛选条件 */
 data class BillFilter(
     val type: Int = TYPE_ALL,
-    val keyword: String = ""
+    val keyword: String = "",
+    val minCents: Long? = null,
+    val maxCents: Long? = null
 ) {
+    val hasAmountFilter: Boolean get() = minCents != null || maxCents != null
+
     companion object {
         const val TYPE_ALL = -1
     }
@@ -47,8 +51,14 @@ sealed interface BillListRow {
 data class BillListUiState(
     val items: List<BillListRow> = emptyList(),
     val typeFilter: Int = BillFilter.TYPE_ALL,
-    val keyword: String = ""
-)
+    val keyword: String = "",
+    val minCents: Long? = null,
+    val maxCents: Long? = null
+) {
+    val hasAnyFilter: Boolean
+        get() = keyword.isNotBlank() || typeFilter != BillFilter.TYPE_ALL ||
+            minCents != null || maxCents != null
+}
 
 /** 账单列表：时间倒序、按月分组、搜索筛选 */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -61,14 +71,18 @@ class BillListViewModel(
     private val filter = MutableStateFlow(BillFilter())
 
     val uiState: StateFlow<BillListUiState> = combine(
-        filter.flatMapLatest { billRepository.searchBills(it.type, it.keyword.trim()) },
+        filter.flatMapLatest {
+            billRepository.searchBills(it.type, it.keyword.trim(), it.minCents, it.maxCents)
+        },
         categoryRepository.getAllCategories(),
         accountRepository.getAllAccounts()
     ) { bills, cats, accounts ->
         BillListUiState(
             items = groupBills(bills, cats, accounts),
             typeFilter = filter.value.type,
-            keyword = filter.value.keyword
+            keyword = filter.value.keyword,
+            minCents = filter.value.minCents,
+            maxCents = filter.value.maxCents
         )
     }.stateIn(
         scope = viewModelScope,
@@ -79,6 +93,14 @@ class BillListViewModel(
     fun setKeyword(keyword: String) = filter.update { it.copy(keyword = keyword) }
 
     fun setTypeFilter(type: Int) = filter.update { it.copy(type = type) }
+
+    /** 金额区间（分）；两者都为 null 表示清除 */
+    fun setAmountRange(minCents: Long?, maxCents: Long?) =
+        filter.update { it.copy(minCents = minCents, maxCents = maxCents) }
+
+    fun clearAllFilters() = filter.update {
+        it.copy(type = BillFilter.TYPE_ALL, keyword = "", minCents = null, maxCents = null)
+    }
 }
 
 /** 将时间倒序的账单按月份分组，组头附带当月收支合计 */

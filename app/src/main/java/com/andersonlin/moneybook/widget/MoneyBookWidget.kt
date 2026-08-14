@@ -66,11 +66,13 @@ class MoneyBookWidget : GlanceAppWidget() {
             .first()
         val income = sums.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L
         val expense = sums.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L
+        val budgetCents = app.budgetRepository.getForMonth(month.year, month.monthValue)?.amountCents
         provideContent {
             WidgetContent(
                 month = month,
                 income = income,
                 expense = expense,
+                budgetCents = budgetCents,
                 context = context
             )
         }
@@ -83,6 +85,7 @@ private fun WidgetContent(
     month: YearMonth,
     income: Long,
     expense: Long,
+    budgetCents: Long?,
     context: Context
 ) {
     GlanceTheme {
@@ -139,6 +142,22 @@ private fun WidgetContent(
                     modifier = GlanceModifier.defaultWeight()
                 )
             }
+            Spacer(GlanceModifier.height(8.dp))
+            Text(
+                text = when {
+                    budgetCents == null -> "本月未设置预算"
+                    expense > budgetCents -> "预算已超支 " + formatCents(expense - budgetCents)
+                    else -> "预算剩余 " + formatCents(budgetCents - expense)
+                },
+                style = TextStyle(
+                    fontSize = 12.sp,
+                    color = if (budgetCents != null && expense > budgetCents) {
+                        GlanceTheme.colors.error
+                    } else {
+                        GlanceTheme.colors.onSurface
+                    }
+                )
+            )
             Spacer(GlanceModifier.height(14.dp))
             Row(GlanceModifier.fillMaxWidth()) {
                 Button(

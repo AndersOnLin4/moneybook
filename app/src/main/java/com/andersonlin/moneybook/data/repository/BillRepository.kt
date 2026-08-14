@@ -17,8 +17,13 @@ class BillRepository(private val dao: BillDao) {
     fun getCategoryStats(type: Int, startDay: Long, endDay: Long) =
         dao.getCategoryStats(type, startDay, endDay)
 
-    fun searchBills(typeFilter: Int, keyword: String) =
-        dao.searchBills(typeFilter, keyword)
+    fun getMonthlyTotals(startDay: Long, endDay: Long) =
+        dao.getMonthlyTotals(startDay, endDay)
+
+    fun getDaySummary(day: Long) = dao.getDaySummary(day)
+
+    fun searchBills(typeFilter: Int, keyword: String, minCents: Long? = null, maxCents: Long? = null) =
+        dao.searchBills(typeFilter, keyword, minCents, maxCents)
 
     suspend fun insert(bill: Bill): Long = dao.insert(bill)
 
