@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -71,10 +72,16 @@ fun SettingsScreen(
 
     val exportFileName = "moneybook_backup_" +
         LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".json"
+    val csvFileName = "moneybook_bills_" +
+        LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".csv"
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri -> uri?.let { viewModel.exportBackup(it) } }
+
+    val csvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri -> uri?.let { viewModel.exportCsv(it) } }
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -142,6 +149,11 @@ fun SettingsScreen(
                     SettingsRow(Icons.Filled.Savings, "月度预算", onManageBudget)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.EventRepeat, "周期账单", onManageRecurring)
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    SettingsRow(
+                        Icons.Filled.TableChart,
+                        "导出账单 CSV（Excel 可打开）"
+                    ) { csvLauncher.launch(csvFileName) }
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(
                         Icons.Filled.Upload,

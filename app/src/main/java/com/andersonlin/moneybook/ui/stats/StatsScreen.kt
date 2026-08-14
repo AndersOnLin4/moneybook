@@ -64,24 +64,45 @@ fun StatsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // 月份切换
+            // 日 / 周 / 月 / 年切换
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                listOf(
+                    StatsViewModel.SCALE_DAY to "日",
+                    StatsViewModel.SCALE_WEEK to "周",
+                    StatsViewModel.SCALE_MONTH to "月",
+                    StatsViewModel.SCALE_YEAR to "年"
+                ).forEachIndexed { index, (value, labelText) ->
+                    SegmentedButton(
+                        selected = state.scale == value,
+                        onClick = { viewModel.setScale(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = 4),
+                        label = { Text(labelText) }
+                    )
+                }
+            }
+
+            // 时间区间切换
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = viewModel::prevMonth) {
-                    Icon(Icons.Filled.ChevronLeft, contentDescription = "上个月")
+                IconButton(onClick = viewModel::prev) {
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = "上一个")
                 }
                 Text(
-                    text = monthLabel(state.month),
+                    text = state.label,
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = viewModel::nextMonth, enabled = !state.isCurrentMonth) {
-                    Icon(Icons.Filled.ChevronRight, contentDescription = "下个月")
+                IconButton(onClick = viewModel::next, enabled = state.canGoNext) {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "下一个")
                 }
             }
 
@@ -89,7 +110,7 @@ fun StatsScreen(
             SingleChoiceSegmentedButtonRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 SegmentedButton(
                     selected = state.type == Bill.TYPE_EXPENSE,
@@ -114,7 +135,7 @@ fun StatsScreen(
                 ) {
                     EmptyState(
                         icon = Icons.Filled.PieChart,
-                        title = "本月暂无${if (state.type == Bill.TYPE_EXPENSE) "支出" else "收入"}记录"
+                        title = "该时间段暂无${if (state.type == Bill.TYPE_EXPENSE) "支出" else "收入"}记录"
                     )
                 }
             } else {

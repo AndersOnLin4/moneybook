@@ -51,6 +51,20 @@ class SettingsViewModel(
         }
     }
 
+    fun exportCsv(uri: Uri) {
+        viewModelScope.launch {
+            val result = backupManager.exportCsvTo(uri)
+            _events.emit(
+                SettingsEvent.ShowMessage(
+                    result.fold(
+                        onSuccess = { "CSV 导出成功，共 $it 条账单（Excel 可直接打开）" },
+                        onFailure = { "导出失败：${it.message ?: "未知错误"}" }
+                    )
+                )
+            )
+        }
+    }
+
     fun importBackup(uri: Uri) {
         viewModelScope.launch {
             val result = backupManager.importFrom(uri)
