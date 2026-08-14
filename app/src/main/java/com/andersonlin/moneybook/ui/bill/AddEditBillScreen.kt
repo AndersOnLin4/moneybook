@@ -31,6 +31,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -51,6 +52,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -69,6 +72,7 @@ fun AddEditBillScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val amountFocusRequester = remember { FocusRequester() }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -79,6 +83,10 @@ fun AddEditBillScreen(
             when (event) {
                 is AddEditEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
                 AddEditEvent.Saved -> onBack()
+                AddEditEvent.SavedContinue -> {
+                    snackbarHostState.showSnackbar("已保存，继续记下一笔")
+                    amountFocusRequester.requestFocus()
+                }
                 AddEditEvent.Deleted -> onBack()
             }
         }
@@ -139,7 +147,9 @@ fun AddEditBillScreen(
             OutlinedTextField(
                 value = state.amountText,
                 onValueChange = viewModel::setAmount,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(amountFocusRequester),
                 label = { Text("金额") },
                 prefix = { Text("¥") },
                 isError = state.amountError,
@@ -241,14 +251,41 @@ fun AddEditBillScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            Button(
-                onClick = viewModel::save,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(26.dp)
-            ) {
-                Text("保存", style = MaterialTheme.typography.titleMedium)
+            if (state.isEdit) {
+                Button(
+                    onClick = { viewModel.save(andContinue = false) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(26.dp)
+                ) {
+                    Text("保存", style = MaterialTheme.typography.titleMedium)
+                }
+            } else {
+                // 连续记账：继续记（留在本页）/ 记完了（返回）
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { viewModel.save(andContinue = true) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(52.dp),
+                        shape = RoundedCornerShape(26.dp)
+                    ) {
+                        Text("继续记", style = MaterialTheme.typography.titleMedium)
+                    }
+                    Button(
+                        onClick = { viewModel.save(andContinue = false) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(52.dp),
+                        shape = RoundedCornerShape(26.dp)
+                    ) {
+                        Text("记完了", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
             }
 
             Spacer(Modifier.height(24.dp))

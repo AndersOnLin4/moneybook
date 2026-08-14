@@ -38,6 +38,7 @@ data class AddEditUiState(
 sealed interface AddEditEvent {
     data class ShowMessage(val message: String) : AddEditEvent
     data object Saved : AddEditEvent
+    data object SavedContinue : AddEditEvent
     data object Deleted : AddEditEvent
 }
 
@@ -144,7 +145,12 @@ class AddEditBillViewModel(
 
     fun setCategory(id: Long) = _uiState.update { it.copy(categoryId = id) }
 
-    fun save() {
+    /**
+     * 保存账单。
+     * @param andContinue true = 保存后留在本页并清空金额/备注（连续记账），
+     *                    false = 保存后返回上一页。
+     */
+    fun save(andContinue: Boolean = false) {
         val state = _uiState.value
         val cents = state.amountText.toCents()
         if (cents == null) {
@@ -182,7 +188,16 @@ class AddEditBillViewModel(
                     )
                 )
             }
-            _events.emit(AddEditEvent.Saved)
+            if (andContinue) {
+                // 保留类型/分类/账户/日期，清空金额与备注，方便连续记账
+                _uiState.update {
+                    it.copy(amountText = "", note = "", amountError = false)
+                }
+                bill = null
+                _events.emit(AddEditEvent.SavedContinue)
+            } else {
+                _events.emit(AddEditEvent.Saved)
+            }
         }
     }
 
