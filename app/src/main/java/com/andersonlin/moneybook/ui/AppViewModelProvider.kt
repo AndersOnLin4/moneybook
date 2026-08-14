@@ -5,6 +5,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.andersonlin.moneybook.MoneyBookApp
+import com.andersonlin.moneybook.ui.account.AccountViewModel
 import com.andersonlin.moneybook.ui.bill.AddEditBillViewModel
 import com.andersonlin.moneybook.ui.bill.BillListViewModel
 import com.andersonlin.moneybook.ui.category.CategoryViewModel
@@ -16,12 +17,21 @@ import com.andersonlin.moneybook.ui.stats.StatsViewModel
 object AppViewModelProvider {
 
     val Factory = viewModelFactory {
-        initializer { HomeViewModel(app().billRepository, app().categoryRepository) }
-        initializer { BillListViewModel(app().billRepository, app().categoryRepository) }
-        initializer { AddEditBillViewModel(app().billRepository, app().categoryRepository) }
+        initializer {
+            HomeViewModel(app().billRepository, app().categoryRepository, app().accountRepository)
+        }
+        initializer {
+            BillListViewModel(app().billRepository, app().categoryRepository, app().accountRepository)
+        }
+        initializer {
+            AddEditBillViewModel(app().billRepository, app().categoryRepository, app().accountRepository)
+        }
         initializer { StatsViewModel(app().billRepository, app().categoryRepository) }
         initializer { SettingsViewModel(app().settingsRepository, app().backupManager) }
-        initializer { CategoryViewModel(app().categoryRepository, app().billRepository, app().recurringRepository) }
+        initializer {
+            CategoryViewModel(app().categoryRepository, app().billRepository, app().recurringRepository)
+        }
+        initializer { AccountViewModel(app().accountRepository) }
     }
 }
 

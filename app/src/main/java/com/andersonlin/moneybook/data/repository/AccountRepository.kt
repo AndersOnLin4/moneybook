@@ -14,6 +14,8 @@ class AccountRepository(
 
     fun getAllAccounts() = dao.getAllAccounts()
 
+    suspend fun getAllSnapshot(): List<Account> = dao.getAllSnapshot()
+
     suspend fun getById(id: Long): Account? = dao.getById(id)
 
     /** 新增账户，排到末尾 */

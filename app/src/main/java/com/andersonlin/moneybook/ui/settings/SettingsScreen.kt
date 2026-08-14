@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Download
@@ -56,6 +57,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SettingsScreen(
     onManageCategories: () -> Unit,
+    onManageAccounts: () -> Unit,
     onAbout: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
@@ -130,6 +132,8 @@ fun SettingsScreen(
             ) {
                 Column {
                     SettingsRow(Icons.Filled.Category, "分类管理", onManageCategories)
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    SettingsRow(Icons.Filled.AccountBalanceWallet, "账户管理", onManageAccounts)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(
                         Icons.Filled.Upload,

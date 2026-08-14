@@ -2,8 +2,10 @@ package com.andersonlin.moneybook.ui.bill
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.andersonlin.moneybook.data.model.Account
 import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.data.model.Category
+import com.andersonlin.moneybook.data.repository.AccountRepository
 import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
 import com.andersonlin.moneybook.util.formatCentsPlain
@@ -28,6 +30,8 @@ data class AddEditUiState(
     val dateEpochDay: Long = LocalDate.now().toEpochDay(),
     val categoryId: Long? = null,
     val categories: List<Category> = emptyList(),
+    val accountId: Long = Bill.DEFAULT_ACCOUNT_ID,
+    val accounts: List<Account> = emptyList(),
     val amountError: Boolean = false
 )
 
@@ -41,7 +45,8 @@ sealed interface AddEditEvent {
 @OptIn(ExperimentalCoroutinesApi::class)
 class AddEditBillViewModel(
     private val billRepository: BillRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val accountRepository: AccountRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddEditUiState())
@@ -86,6 +91,20 @@ class AddEditBillViewModel(
                 }
         }
 
+        // 账户列表（不分收支类型），默认选中第一个账户
+        viewModelScope.launch {
+            accountRepository.getAllAccounts().collect { accounts ->
+                _uiState.update { state ->
+                    val accountId = if (accounts.any { it.id == state.accountId }) {
+                        state.accountId
+                    } else {
+                        accounts.firstOrNull()?.id ?: Bill.DEFAULT_ACCOUNT_ID
+                    }
+                    state.copy(accounts = accounts, accountId = accountId)
+                }
+            }
+        }
+
         if (billId > 0) {
             viewModelScope.launch {
                 billRepository.getById(billId)?.let { b ->
@@ -97,7 +116,8 @@ class AddEditBillViewModel(
                             amountText = formatCentsPlain(b.amountCents),
                             note = b.note,
                             dateEpochDay = b.dateEpochDay,
-                            categoryId = b.categoryId
+                            categoryId = b.categoryId,
+                            accountId = b.accountId
                         )
                     }
                 }
@@ -108,6 +128,8 @@ class AddEditBillViewModel(
     }
 
     fun setType(type: Int) = _uiState.update { it.copy(type = type, categoryId = null) }
+
+    fun setAccount(id: Long) = _uiState.update { it.copy(accountId = id) }
 
     fun setAmount(text: String) {
         // 只允许数字 + 最多一个小数点、两位小数
@@ -143,6 +165,7 @@ class AddEditBillViewModel(
                         type = state.type,
                         amountCents = cents,
                         categoryId = categoryId,
+                        accountId = state.accountId,
                         note = state.note.trim(),
                         dateEpochDay = state.dateEpochDay
                     )
@@ -153,6 +176,7 @@ class AddEditBillViewModel(
                         type = state.type,
                         amountCents = cents,
                         categoryId = categoryId,
+                        accountId = state.accountId,
                         note = state.note.trim(),
                         dateEpochDay = state.dateEpochDay
                     )

@@ -2,8 +2,10 @@ package com.andersonlin.moneybook.ui.bill
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.andersonlin.moneybook.data.model.Account
 import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.data.model.Category
+import com.andersonlin.moneybook.data.repository.AccountRepository
 import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
 import com.andersonlin.moneybook.util.toYearMonth
@@ -37,7 +39,8 @@ sealed interface BillListRow {
 
     data class Item(
         val bill: Bill,
-        val category: Category?
+        val category: Category?,
+        val account: Account?
     ) : BillListRow
 }
 
@@ -51,17 +54,19 @@ data class BillListUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 class BillListViewModel(
     private val billRepository: BillRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val accountRepository: AccountRepository
 ) : ViewModel() {
 
     private val filter = MutableStateFlow(BillFilter())
 
     val uiState: StateFlow<BillListUiState> = combine(
         filter.flatMapLatest { billRepository.searchBills(it.type, it.keyword.trim()) },
-        categoryRepository.getAllCategories()
-    ) { bills, cats ->
+        categoryRepository.getAllCategories(),
+        accountRepository.getAllAccounts()
+    ) { bills, cats, accounts ->
         BillListUiState(
-            items = groupBills(bills, cats),
+            items = groupBills(bills, cats, accounts),
             typeFilter = filter.value.type,
             keyword = filter.value.keyword
         )
@@ -77,8 +82,13 @@ class BillListViewModel(
 }
 
 /** 将时间倒序的账单按月份分组，组头附带当月收支合计 */
-private fun groupBills(bills: List<Bill>, categories: List<Category>): List<BillListRow> {
+private fun groupBills(
+    bills: List<Bill>,
+    categories: List<Category>,
+    accounts: List<Account>
+): List<BillListRow> {
     val categoryMap = categories.associateBy { it.id }
+    val accountMap = accounts.associateBy { it.id }
     val result = mutableListOf<BillListRow>()
     var i = 0
     while (i < bills.size) {
@@ -94,7 +104,7 @@ private fun groupBills(bills: List<Bill>, categories: List<Category>): List<Bill
         }
         result.add(BillListRow.Header(month, expense, income))
         monthBills.forEach { bill ->
-            result.add(BillListRow.Item(bill, categoryMap[bill.categoryId]))
+            result.add(BillListRow.Item(bill, categoryMap[bill.categoryId], accountMap[bill.accountId]))
         }
     }
     return result

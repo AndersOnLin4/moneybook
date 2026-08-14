@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.andersonlin.moneybook.data.model.Account
 import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.data.model.Category
 import com.andersonlin.moneybook.util.dateLabel
@@ -46,11 +47,12 @@ fun CategoryIconBadge(emoji: String, size: Dp = 44.dp) {
     }
 }
 
-/** 账单行：图标 + 分类名/备注 + 金额，点击进入编辑 */
+/** 账单行：图标 + 分类名/账户/备注 + 金额，点击进入编辑 */
 @Composable
 fun BillRow(
     bill: Bill,
     category: Category?,
+    account: Account? = null,
     showDate: Boolean = true,
     onClick: () -> Unit
 ) {
@@ -77,6 +79,7 @@ fun BillRow(
                 val dateText = if (showDate) dateLabel(bill.dateEpochDay) else ""
                 val subtitle = listOfNotNull(
                     dateText.takeIf { it.isNotEmpty() },
+                    account?.name?.takeIf { it.isNotEmpty() },
                     bill.note.takeIf { it.isNotBlank() }
                 ).joinToString(" · ")
                 if (subtitle.isNotEmpty()) {

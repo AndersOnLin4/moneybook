@@ -181,6 +181,23 @@ fun AddEditBillScreen(
 
             Spacer(Modifier.height(16.dp))
 
+            // 账户
+            Text("账户", style = MaterialTheme.typography.titleSmall)
+            FlowRow(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                state.accounts.forEach { account ->
+                    FilterChip(
+                        selected = state.accountId == account.id,
+                        onClick = { viewModel.setAccount(account.id) },
+                        label = { Text("${account.icon} ${account.name}") }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
             // 备注
             OutlinedTextField(
                 value = state.note,

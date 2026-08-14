@@ -109,6 +109,7 @@ fun HomeScreen(
                     BillRow(
                         bill = bill,
                         category = state.categories[bill.categoryId],
+                        account = state.accounts[bill.accountId],
                         onClick = { onBillClick(bill.id) }
                     )
                 }

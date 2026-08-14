@@ -133,6 +133,7 @@ fun BillListScreen(
                                 BillRow(
                                     bill = row.bill,
                                     category = row.category,
+                                    account = row.account,
                                     showDate = false,
                                     onClick = { onBillClick(row.bill.id) }
                                 )

@@ -25,6 +25,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.andersonlin.moneybook.data.model.Bill
+import com.andersonlin.moneybook.ui.account.AccountScreen
 import com.andersonlin.moneybook.ui.bill.AddEditBillScreen
 import com.andersonlin.moneybook.ui.bill.BillListScreen
 import com.andersonlin.moneybook.ui.category.CategoryScreen
@@ -40,6 +41,7 @@ object Routes {
     const val STATS = "stats"
     const val SETTINGS = "settings"
     const val CATEGORIES = "categories"
+    const val ACCOUNTS = "accounts"
     const val ABOUT = "about"
     const val ADD_EDIT = "add_edit?billId={billId}&type={type}"
 
@@ -120,6 +122,7 @@ fun AppRoot() {
             composable(Routes.SETTINGS) {
                 SettingsScreen(
                     onManageCategories = { navController.navigate(Routes.CATEGORIES) },
+                    onManageAccounts = { navController.navigate(Routes.ACCOUNTS) },
                     onAbout = { navController.navigate(Routes.ABOUT) }
                 )
             }
@@ -146,6 +149,9 @@ fun AppRoot() {
             }
             composable(Routes.CATEGORIES) {
                 CategoryScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.ACCOUNTS) {
+                AccountScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.ABOUT) {
                 AboutScreen(onBack = { navController.popBackStack() })

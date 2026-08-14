@@ -1,4 +1,4 @@
-package com.andersonlin.moneybook.ui.category
+package com.andersonlin.moneybook.ui.account
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,7 +41,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,32 +52,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.andersonlin.moneybook.data.model.Bill
-import com.andersonlin.moneybook.data.model.Category
+import com.andersonlin.moneybook.data.model.Account
 import com.andersonlin.moneybook.ui.AppViewModelProvider
 import com.andersonlin.moneybook.ui.components.CategoryIconBadge
 import com.andersonlin.moneybook.ui.components.EMOJI_CHOICES
 
-private data class PendingDelete(val category: Category, val billCount: Int)
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun CategoryScreen(
+fun AccountScreen(
     onBack: () -> Unit,
-    viewModel: CategoryViewModel = viewModel(factory = AppViewModelProvider.Factory)
+    viewModel: AccountViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showAddDialog by remember { mutableStateOf(false) }
-    var addType by remember { mutableIntStateOf(Bill.TYPE_EXPENSE) }
-    var pendingDelete by remember { mutableStateOf<PendingDelete?>(null) }
+    var pendingDelete by remember { mutableStateOf<Account?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is CategoryEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
-                is CategoryEvent.AskDelete -> pendingDelete =
-                    PendingDelete(event.category, event.billCount)
+                is AccountEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
+                is AccountEvent.AskDelete -> pendingDelete = event.account
             }
         }
     }
@@ -88,10 +82,15 @@ fun CategoryScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("分类管理") },
+                title = { Text("账户管理") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showAddDialog = true }) {
+                        Icon(Icons.Filled.Add, contentDescription = "添加账户")
                     }
                 }
             )
@@ -102,92 +101,68 @@ fun CategoryScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            val expenseCategories = categories.filter { it.type == Bill.TYPE_EXPENSE }
-            val incomeCategories = categories.filter { it.type == Bill.TYPE_INCOME }
-
-            item(key = "expense_header") {
-                CategorySectionHeader(
-                    title = "支出分类",
-                    onAdd = {
-                        addType = Bill.TYPE_EXPENSE
-                        showAddDialog = true
-                    }
+            item(key = "hint") {
+                Text(
+                    text = "每笔账单可归属一个账户，删除账户后其账单会自动转移到其它账户。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 )
             }
-            if (expenseCategories.isEmpty()) {
-                item(key = "expense_empty") {
+            items(accounts, key = { it.id }) { account ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CategoryIconBadge(account.icon, size = 40.dp)
+                    Spacer(Modifier.width(12.dp))
                     Text(
-                        text = "暂无支出分类",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        text = account.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
                     )
-                }
-            } else {
-                items(expenseCategories, key = { "c${it.id}" }) { category ->
-                    CategoryRow(
-                        category = category,
-                        onDelete = { viewModel.requestDelete(category) }
-                    )
-                }
-            }
-
-            item(key = "income_header") {
-                CategorySectionHeader(
-                    title = "收入分类",
-                    onAdd = {
-                        addType = Bill.TYPE_INCOME
-                        showAddDialog = true
+                    if (account.isDefault) {
+                        Text(
+                            text = "默认",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    } else {
+                        IconButton(onClick = { viewModel.requestDelete(account) }) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = "删除",
+                                tint = MaterialTheme.colorScheme.outline
+                            )
+                        }
                     }
-                )
-            }
-            if (incomeCategories.isEmpty()) {
-                item(key = "income_empty") {
-                    Text(
-                        text = "暂无收入分类",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
-            } else {
-                items(incomeCategories, key = { "c${it.id}" }) { category ->
-                    CategoryRow(
-                        category = category,
-                        onDelete = { viewModel.requestDelete(category) }
-                    )
                 }
             }
-
             item(key = "bottom_space") { Spacer(Modifier.height(16.dp)) }
         }
     }
 
     if (showAddDialog) {
-        AddCategoryDialog(
-            type = addType,
-            existing = categories,
+        AddAccountDialog(
+            existing = accounts,
             onDismiss = { showAddDialog = false },
             onConfirm = { name, icon ->
-                viewModel.addCategory(name, icon, addType)
+                viewModel.addAccount(name, icon)
                 showAddDialog = false
             }
         )
     }
 
-    pendingDelete?.let { pending ->
+    pendingDelete?.let { account ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("删除分类") },
-            text = {
-                Text(
-                    "「${pending.category.icon} ${pending.category.name}」分类下有 " +
-                        "${pending.billCount} 笔账单，删除分类将同时删除这些账单。确定删除吗？"
-                )
-            },
+            title = { Text("删除账户") },
+            text = { Text("确定删除「${account.icon} ${account.name}」吗？该账户下的账单会自动转移到其它账户。") },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.confirmDelete(pending.category)
+                    viewModel.confirmDelete(account)
                     pendingDelete = null
                 }) { Text("删除", color = MaterialTheme.colorScheme.error) }
             },
@@ -198,79 +173,25 @@ fun CategoryScreen(
     }
 }
 
-@Composable
-private fun CategorySectionHeader(title: String, onAdd: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 8.dp, top = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1f)
-        )
-        IconButton(onClick = onAdd) {
-            Icon(Icons.Filled.Add, contentDescription = "添加分类")
-        }
-    }
-}
-
-@Composable
-private fun CategoryRow(category: Category, onDelete: (() -> Unit)?) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        CategoryIconBadge(category.icon, size = 40.dp)
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = category.name,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        if (category.isDefault) {
-            Text(
-                text = "默认",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline
-            )
-        } else if (onDelete != null) {
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Filled.Delete,
-                    contentDescription = "删除",
-                    tint = MaterialTheme.colorScheme.outline
-                )
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AddCategoryDialog(
-    type: Int,
-    existing: List<Category>,
+private fun AddAccountDialog(
+    existing: List<Account>,
     onDismiss: () -> Unit,
     onConfirm: (name: String, icon: String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    var icon by remember { mutableStateOf(EMOJI_CHOICES.first()) }
+    var icon by remember { mutableStateOf("💵") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (type == Bill.TYPE_EXPENSE) "添加支出分类" else "添加收入分类") },
+        title = { Text("添加账户") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { if (it.length <= 8) name = it },
-                    label = { Text("分类名称") },
+                    onValueChange = { if (it.length <= 6) name = it },
+                    label = { Text("账户名称") },
                     singleLine = true
                 )
                 Spacer(Modifier.height(12.dp))
@@ -306,7 +227,7 @@ private fun AddCategoryDialog(
         confirmButton = {
             TextButton(onClick = {
                 if (name.isBlank()) return@TextButton
-                if (existing.any { it.type == type && it.name == name.trim() }) return@TextButton
+                if (existing.any { it.name == name.trim() }) return@TextButton
                 onConfirm(name, icon)
             }) { Text("确定") }
         },
