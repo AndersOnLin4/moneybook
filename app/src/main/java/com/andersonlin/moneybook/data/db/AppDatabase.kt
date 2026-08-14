@@ -66,7 +66,8 @@ abstract class AppDatabase : RoomDatabase() {
         /**
          * v1 → v2：
          * 1. 新增 accounts 表并写入默认账户（现金/微信/支付宝/银行卡）
-         * 2. bills 增加 accountId 列，旧数据归入「现金」账户（id = 1）
+         * 2. 重建 bills 表：新增 accountId 列 + 账户外键（SQLite 的 ALTER 无法加外键，
+         *    且需保证列无默认值，与 Room 实体一致），旧数据全部归入「现金」账户（id = 1）
          * 3. 新增 budgets（月度预算）与 recurring_bills（周期账单）表
          */
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -83,10 +84,34 @@ abstract class AppDatabase : RoomDatabase() {
                         arrayOf(a.name, a.icon, if (a.isDefault) 1 else 0, a.sortOrder)
                     )
                 }
+                // 重建 bills：加 accountId 列（无默认值）+ accounts 外键
                 db.execSQL(
-                    "ALTER TABLE bills ADD COLUMN accountId INTEGER NOT NULL DEFAULT 0"
+                    "CREATE TABLE IF NOT EXISTS bills_new (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "type INTEGER NOT NULL, amountCents INTEGER NOT NULL, " +
+                        "categoryId INTEGER NOT NULL, accountId INTEGER NOT NULL, " +
+                        "note TEXT NOT NULL, dateEpochDay INTEGER NOT NULL, createdAt INTEGER NOT NULL, " +
+                        "FOREIGN KEY(categoryId) REFERENCES categories(id) " +
+                        "ON UPDATE NO ACTION ON DELETE RESTRICT, " +
+                        "FOREIGN KEY(accountId) REFERENCES accounts(id) " +
+                        "ON UPDATE NO ACTION ON DELETE RESTRICT)"
                 )
-                db.execSQL("UPDATE bills SET accountId = 1 WHERE accountId = 0")
+                db.execSQL(
+                    "INSERT INTO bills_new " +
+                        "(id, type, amountCents, categoryId, accountId, note, dateEpochDay, createdAt) " +
+                        "SELECT id, type, amountCents, categoryId, 1, note, dateEpochDay, createdAt FROM bills"
+                )
+                db.execSQL("DROP TABLE bills")
+                db.execSQL("ALTER TABLE bills_new RENAME TO bills")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_bills_categoryId ON bills (categoryId)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_bills_dateEpochDay ON bills (dateEpochDay)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_bills_type ON bills (type)"
+                )
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_bills_accountId ON bills (accountId)"
                 )
@@ -106,7 +131,11 @@ abstract class AppDatabase : RoomDatabase() {
                         "categoryId INTEGER NOT NULL, accountId INTEGER NOT NULL, " +
                         "note TEXT NOT NULL, cycle INTEGER NOT NULL, " +
                         "startEpochDay INTEGER NOT NULL, lastGeneratedEpochDay INTEGER NOT NULL, " +
-                        "enabled INTEGER NOT NULL)"
+                        "enabled INTEGER NOT NULL, " +
+                        "FOREIGN KEY(categoryId) REFERENCES categories(id) " +
+                        "ON UPDATE NO ACTION ON DELETE RESTRICT, " +
+                        "FOREIGN KEY(accountId) REFERENCES accounts(id) " +
+                        "ON UPDATE NO ACTION ON DELETE RESTRICT)"
                 )
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_recurring_bills_categoryId ON recurring_bills (categoryId)"
