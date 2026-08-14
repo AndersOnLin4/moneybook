@@ -86,16 +86,12 @@ class MainActivity : FragmentActivity() {
         startActivityForResult(intent, CREATE_DOCUMENT_REQUEST_CODE)
     }
 
-    /** 弹出系统文件选择器（导入用），固定 requestCode 避免库缺陷 */
+    /** 弹出系统文件选择器（导入用），固定 requestCode 避免库缺陷；不过滤类型以兼容 .mbk/.json */
     fun openDocument(callback: (android.net.Uri?) -> Unit) {
         pendingOpenDocumentCallback = callback
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
-            putExtra(
-                Intent.EXTRA_MIME_TYPES,
-                arrayOf("application/json", "text/json", "text/plain", "application/octet-stream")
-            )
         }
         startActivityForResult(intent, OPEN_DOCUMENT_REQUEST_CODE)
     }
