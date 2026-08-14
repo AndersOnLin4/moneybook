@@ -146,6 +146,64 @@
 
 ---
 
+## 🖼️ 界面预览
+
+以下为「记一笔」主要界面的实际截图（v2.0.0），涵盖记账、分类账户账本、预算、周期账单与存钱目标、统计图表、账单检索与附件、安全与备份、外观与小组件全场景。
+
+### 💳 核心记账
+
+| 首页 | 记账（支出 / 收入 / 连续记账） | 日历热力图快速补账 |
+| --- | --- | --- |
+| <img src="docs/screenshots/image-20260815012617003.png" width="200" alt="首页"> | <img src="docs/screenshots/image-20260815012441394.png" width="200" alt="记账"> | <img src="docs/screenshots/image-20260815012736005.png" width="200" alt="日历补账"> |
+
+### 🏷️ 分类 / 账户 / 多账本
+
+| 分类管理 | 账户管理 | 账本切换与自定义 |
+| --- | --- | --- |
+| <img src="docs/screenshots/image-20260815012921680.png" width="200" alt="分类管理"> | <img src="docs/screenshots/image-20260815012941356.png" width="200" alt="账户管理"> | <img src="docs/screenshots/image-20260815013117908.png" width="200" alt="账本切换"><br><img src="docs/screenshots/image-20260815013201364.png" width="200" alt="账本自定义"> |
+
+### 💰 预算管控（月度 + 分类双层预算）
+
+| 月度总预算 | 分类预算明细 | 超支 / 临近预警 |
+| --- | --- | --- |
+| <img src="docs/screenshots/image-20260815013352424.png" width="200" alt="月度预算"><br><img src="docs/screenshots/image-20260815013415801.png" width="200" alt="预算联动"> | <img src="docs/screenshots/image-20260815013519913.png" width="200" alt="分类预算明细"> | <img src="docs/screenshots/image-20260815013736979.png" width="200" alt="超支预警"> |
+
+### 🔁 周期账单 / 存钱目标 / 记账提醒
+
+| 周期账单管理 | 存钱目标进度 | 记账提醒设置 |
+| --- | --- | --- |
+| <img src="docs/screenshots/image-20260815013956366.png" width="200" alt="周期账单"> | <img src="docs/screenshots/image-20260815014116785.png" width="200" alt="存钱目标"><br><img src="docs/screenshots/image-20260815014207552.png" width="200" alt="目标进度"> | <img src="docs/screenshots/image-20260815014746718.png" width="200" alt="记账提醒"> |
+
+### 📈 统计图表（原生 Canvas 自绘）
+
+| 分类占比饼图 | 收支对比柱状图 | 收支趋势折线图 |
+| --- | --- | --- |
+| <img src="docs/screenshots/image-20260815014832025.png" width="200" alt="饼图"> | <img src="docs/screenshots/image-20260815014847193.png" width="200" alt="柱状图"> | <img src="docs/screenshots/image-20260815014903399.png" width="200" alt="折线图"> |
+
+### 🔍 账单检索与附件
+
+| 账单筛选搜索 | 附件添加 | 附件预览（内置查看器） |
+| --- | --- | --- |
+| <img src="docs/screenshots/image-20260815015530497.png" width="200" alt="账单筛选"> | <img src="docs/screenshots/image-20260815015626414.png" width="200" alt="附件添加"> | <img src="docs/screenshots/image-20260815015716839.png" width="200" alt="附件预览"> |
+
+### 🔐 安全与数据备份
+
+| 应用密码锁 | 指纹解锁（自动唤起） | AES 加密备份 |
+| --- | --- | --- |
+| <img src="docs/screenshots/image-20260815015859083.png" width="200" alt="应用锁"> | <img src="docs/screenshots/image-20260815015938919.png" width="200" alt="指纹解锁"> | <img src="docs/screenshots/image-20260815020024888.png" width="200" alt="加密备份"> |
+
+| 备份恢复 | JSON 明文备份 | CSV 表格导出 |
+| --- | --- | --- |
+| <img src="docs/screenshots/image-20260815020128989.png" width="200" alt="备份恢复"> | <img src="docs/screenshots/image-20260815020221768.png" width="200" alt="JSON 备份"> | <img src="docs/screenshots/image-20260815020253976.png" width="200" alt="CSV 导出"> |
+
+### 🎨 外观、小组件与新手引导
+
+| 深浅主题切换 | 桌面小组件 | 首次启动引导页 |
+| --- | --- | --- |
+| <img src="docs/screenshots/image-20260815020313939.png" width="200" alt="主题切换"> | <img src="docs/screenshots/image-20260815020331093.png" width="200" alt="桌面小组件"> | <img src="docs/screenshots/image-20260815020356354.png" width="200" alt="新手引导"> |
+
+---
+
 ## 🏃 快速上手
 
 1. **初始设置**：首次启动跟随引导完成账本、分类、预算、应用锁设置，也可以全部跳过直接使用
