@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.andersonlin.moneybook.data.model.Goal
 import com.andersonlin.moneybook.data.repository.GoalRepository
+import com.andersonlin.moneybook.data.repository.LedgerRepository
+import com.andersonlin.moneybook.data.saving.SavingDepositService
+import com.andersonlin.moneybook.util.formatCents
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,9 +20,11 @@ sealed interface GoalEvent {
     data class ShowMessage(val message: String) : GoalEvent
 }
 
-/** 存钱目标：设置目标金额与截止日期，自动计算每月需存，进度可视化 */
+/** 存钱目标：设置目标金额与截止日期，自动计算每月需存，进度可视化；存入一笔自动记「储蓄」支出 */
 class GoalViewModel(
-    private val goalRepository: GoalRepository
+    private val goalRepository: GoalRepository,
+    private val savingDepositService: SavingDepositService,
+    private val ledgerRepository: LedgerRepository
 ) : ViewModel() {
 
     val goals: StateFlow<List<Goal>> = goalRepository.getAllGoals()
@@ -61,8 +66,13 @@ class GoalViewModel(
             return
         }
         viewModelScope.launch {
-            goalRepository.deposit(goal.id, cents)
-            _events.emit(GoalEvent.ShowMessage("已存入 ${"%,.2f".format(cents / 100.0)} 元"))
+            val ledgerId = ledgerRepository.getActiveLedgerId()
+            savingDepositService.deposit(goal, cents, ledgerId)
+            _events.emit(
+                GoalEvent.ShowMessage(
+                    "已存入 ${formatCents(cents)}，并记了一笔「储蓄」支出"
+                )
+            )
         }
     }
 

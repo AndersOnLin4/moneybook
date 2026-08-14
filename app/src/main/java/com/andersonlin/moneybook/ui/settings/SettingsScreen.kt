@@ -116,7 +116,7 @@ fun SettingsScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            SettingsSectionHeader("外观")
+            SettingsSectionHeader("常用")
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -127,17 +127,7 @@ fun SettingsScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column {
-                    ThemeOptionRow("跟随系统", themeMode == ThemeMode.SYSTEM) {
-                        viewModel.setThemeMode(ThemeMode.SYSTEM)
-                    }
-                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-                    ThemeOptionRow("浅色模式", themeMode == ThemeMode.LIGHT) {
-                        viewModel.setThemeMode(ThemeMode.LIGHT)
-                    }
-                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-                    ThemeOptionRow("深色模式", themeMode == ThemeMode.DARK) {
-                        viewModel.setThemeMode(ThemeMode.DARK)
-                    }
+                    SettingsRow(Icons.AutoMirrored.Filled.MenuBook, "账本管理", onManageLedgers)
                 }
             }
 
@@ -152,8 +142,6 @@ fun SettingsScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column {
-                    SettingsRow(Icons.AutoMirrored.Filled.MenuBook, "账本管理", onManageLedgers)
-                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.Category, "分类管理", onManageCategories)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.AccountBalanceWallet, "账户管理", onManageAccounts)
@@ -209,6 +197,32 @@ fun SettingsScreen(
             ) {
                 Column {
                     SettingsRow(Icons.Filled.Info, "关于", onAbout)
+                }
+            }
+
+            // 外观设置不常用，放最下面
+            SettingsSectionHeader("外观")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column {
+                    ThemeOptionRow("跟随系统", themeMode == ThemeMode.SYSTEM) {
+                        viewModel.setThemeMode(ThemeMode.SYSTEM)
+                    }
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    ThemeOptionRow("浅色模式", themeMode == ThemeMode.LIGHT) {
+                        viewModel.setThemeMode(ThemeMode.LIGHT)
+                    }
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    ThemeOptionRow("深色模式", themeMode == ThemeMode.DARK) {
+                        viewModel.setThemeMode(ThemeMode.DARK)
+                    }
                 }
             }
 

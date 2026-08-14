@@ -131,7 +131,8 @@ fun AppRoot(addEvents: Flow<Unit> = emptyFlow()) {
                     onViewAll = { navController.navigate(Routes.BILLS) },
                     onBillClick = { id -> navController.navigate(Routes.addEdit(billId = id)) },
                     onSetBudget = { navController.navigate(Routes.BUDGET) },
-                    onManageLedgers = { navController.navigate(Routes.LEDGERS) }
+                    onManageLedgers = { navController.navigate(Routes.LEDGERS) },
+                    onOpenGoals = { navController.navigate(Routes.GOALS) }
                 )
             }
             composable(Routes.BILLS) {

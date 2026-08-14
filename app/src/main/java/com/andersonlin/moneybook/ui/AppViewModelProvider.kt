@@ -29,7 +29,8 @@ object AppViewModelProvider {
                 app().categoryRepository,
                 app().accountRepository,
                 app().budgetRepository,
-                app().ledgerRepository
+                app().ledgerRepository,
+                app().goalRepository
             )
         }
         initializer {
@@ -69,7 +70,9 @@ object AppViewModelProvider {
         }
         initializer { LockViewModel(app().lockSettingsRepository) }
         initializer { LedgerViewModel(app().ledgerRepository, app().billRepository) }
-        initializer { GoalViewModel(app().goalRepository) }
+        initializer {
+            GoalViewModel(app().goalRepository, app().savingDepositService, app().ledgerRepository)
+        }
         initializer { ReminderViewModel(app().reminderRepository) }
     }
 }

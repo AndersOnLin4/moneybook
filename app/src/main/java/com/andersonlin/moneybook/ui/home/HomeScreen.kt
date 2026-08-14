@@ -47,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andersonlin.moneybook.ui.AppViewModelProvider
 import com.andersonlin.moneybook.ui.components.BillRow
 import com.andersonlin.moneybook.ui.components.EmptyState
+import com.andersonlin.moneybook.ui.goal.toProgress
 import com.andersonlin.moneybook.util.formatCents
 import java.time.YearMonth
 
@@ -58,6 +59,7 @@ fun HomeScreen(
     onBillClick: (Long) -> Unit,
     onSetBudget: () -> Unit,
     onManageLedgers: () -> Unit,
+    onOpenGoals: () -> Unit,
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -130,6 +132,12 @@ fun HomeScreen(
                         todayExpense = state.todayExpense
                     )
                 }
+                item(key = "goal") {
+                    HomeGoalCard(
+                        goals = state.goals,
+                        onOpenGoals = onOpenGoals
+                    )
+                }
                 item(key = "recent_header") {
                     Row(
                         modifier = Modifier
@@ -198,6 +206,71 @@ fun HomeScreen(
                 TextButton(onClick = { showLedgerDialog = false }) { Text("关闭") }
             }
         )
+    }
+}
+
+@Composable
+private fun HomeGoalCard(goals: List<com.andersonlin.moneybook.data.model.Goal>, onOpenGoals: () -> Unit) {
+    val activeGoal = goals.firstOrNull { it.savedCents < it.targetCents }
+    Card(
+        onClick = onOpenGoals,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+            if (activeGoal == null) {
+                Text(
+                    text = "🎯 设定存钱目标，攒钱更有动力",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                val progress = activeGoal.toProgress()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${activeGoal.icon} ${activeGoal.name}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "每月需存 ${formatCents(progress.monthlyNeedCents ?: 0L)}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { progress.percent },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+                Spacer(Modifier.height(6.dp))
+                Row {
+                    Text(
+                        text = "已存 ${formatCents(activeGoal.savedCents)} / ${formatCents(activeGoal.targetCents)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "${(progress.percent * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
     }
 }
 
