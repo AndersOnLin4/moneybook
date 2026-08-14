@@ -130,6 +130,27 @@ class MainActivity : FragmentActivity() {
             }
     }
 
+    /** 唤起系统应用查看附件（图片→相册/图库，文件→对应应用） */
+    fun openAttachmentViewer(uriString: String, mime: String?) {
+        val uri = runCatching {
+            if (uriString.startsWith("file://")) {
+                androidx.core.content.FileProvider.getUriForFile(
+                    this,
+                    "$packageName.fileprovider",
+                    java.io.File(android.net.Uri.parse(uriString).path ?: return@runCatching null)
+                )
+            } else {
+                android.net.Uri.parse(uriString)
+            }
+        }.getOrNull() ?: return
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mime?.takeIf { it != "image/*" } ?: "*/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { startActivity(Intent.createChooser(intent, "打开附件")) }
+            .onFailure { runCatching { startActivity(intent) } }
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         val uri = if (resultCode == RESULT_OK) data?.data else null

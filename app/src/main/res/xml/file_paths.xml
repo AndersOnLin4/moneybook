@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 备份恢复的附件存放目录，供外部应用查看附件时共享 -->
+    <files-path
+        name="attachments"
+        path="attachments/" />
+</paths>

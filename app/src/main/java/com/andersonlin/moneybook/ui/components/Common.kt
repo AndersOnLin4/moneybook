@@ -25,11 +25,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.andersonlin.moneybook.data.model.Account
 import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.data.model.Category
@@ -121,6 +123,18 @@ fun BillRow(
                     MaterialTheme.colorScheme.primary
                 }
             )
+            // 图片附件缩略图（一眼可见账单带图）
+            if (bill.attachmentMime?.startsWith("image/") == true && bill.attachmentUri != null) {
+                Spacer(Modifier.width(8.dp))
+                AsyncImage(
+                    model = android.net.Uri.parse(bill.attachmentUri),
+                    contentDescription = "附件图片",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                )
+            }
         }
     }
 }
