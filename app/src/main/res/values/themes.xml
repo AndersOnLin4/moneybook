@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 应用启动主题：Compose 应用使用无 ActionBar 主题 -->
+    <style name="Theme.MoneyBook" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

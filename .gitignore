@@ -1,0 +1,20 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+app/build
+build/
+*.apk
+*.aab
+*.keystore
+!gradle/wrapper/gradle-wrapper.jar
+# 本机构建工具链（JDK / Android SDK / Gradle 缓存），不提交
+/tools/
+# 发布签名密钥库，不提交
+/keystore/
