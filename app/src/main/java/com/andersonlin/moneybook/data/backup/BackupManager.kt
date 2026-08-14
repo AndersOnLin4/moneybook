@@ -49,7 +49,10 @@ class BackupManager(
 ) {
 
     companion object {
-        /** 加密备份文件头标识：v2（ZIP 容器，含附件） */
+        /** 加密备份文件头标识：v3（密钥由 PIN 明文派生，跨设备可恢复） */
+        private val MAGIC_V3 = byteArrayOf('M'.code.toByte(), 'B'.code.toByte(), 'K'.code.toByte(), '3'.code.toByte())
+
+        /** 旧版加密备份文件头（v2：ZIP 含附件，密钥绑定本机盐，仅同设备可恢复） */
         private val MAGIC_V2 = byteArrayOf('M'.code.toByte(), 'B'.code.toByte(), 'K'.code.toByte(), '2'.code.toByte())
 
         /** 旧版加密备份文件头（v1，无附件打包） */
@@ -57,7 +60,13 @@ class BackupManager(
 
         /** 未设置应用锁时的内置派生密钥盐 */
         private const val DEFAULT_KEY_SALT = "moneybook-default-key-v1"
+
+        /** v3 密钥派生盐：SHA-256(PIN + 本盐)，与设备无关，跨设备可重现 */
+        private const val KEY_SALT_V3 = "moneybook-key-salt-v3"
     }
+
+    /** 备份密码错误（导入时用于触发密码输入弹窗） */
+    class BackupPasswordException : Exception("应用锁密码不匹配或文件已损坏")
 
     /** 构建完整备份 JSON（全部账本、分类、账户、预算、周期账单、存钱目标、账单） */
     private suspend fun buildBackupJson(): Pair<String, Int> {
@@ -144,19 +153,30 @@ class BackupManager(
     }
 
     /**
-     * 导出加密备份 v2（.mbk）：ZIP 容器（backup.json + 附件原文件）→ GZIP → AES-256-GCM。
-     * 密钥由应用锁 PIN 派生；未设置应用锁时使用内置密钥。
+     * 导出加密备份 v3（.mbk）：ZIP 容器（backup.json + 附件原文件）→ GZIP → AES-256-GCM。
+     * 密钥由应用锁 PIN 明文派生（跨设备可恢复）；未设锁时用内置密钥。
+     * 已设锁时要求传入正确 PIN。
      */
-    suspend fun exportEncryptedTo(uri: Uri): Result<Int> = withContext(Dispatchers.IO) {
+    suspend fun exportEncryptedTo(uri: Uri, pin: String?): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
+            val lockSettings = lockSettingsRepository.settings.first()
+            if (lockSettings.hasPin) {
+                if (pin == null) {
+                    error("需要输入应用锁密码才能导出")
+                }
+                if (!lockSettingsRepository.verifyPin(pin, lockSettings)) {
+                    error("应用锁密码不正确")
+                }
+            }
+            val key = deriveKeyV3(if (lockSettings.hasPin) pin else null)
             val (text, count) = buildBackupJson()
             val attachments = collectAttachments()
             val zipBytes = buildZipContainer(text, attachments)
             val compressed = gzip(zipBytes)
-            val encrypted = encryptAesGcm(compressed, deriveKey())
+            val encrypted = encryptAesGcm(compressed, key)
             val output = context.contentResolver.openOutputStream(uri)
                 ?: error("无法打开输出流")
-            output.use { it.write(MAGIC_V2 + encrypted) }
+            output.use { it.write(MAGIC_V3 + encrypted) }
             count
         }
     }
@@ -248,13 +268,21 @@ class BackupManager(
         else -> "application/octet-stream"
     }
 
-    /** 密钥派生：SHA-256(PIN + 固定盐)；无锁 PIN 时用内置盐 */
-    private suspend fun deriveKey(): SecretKeySpec {
+    /** 旧版密钥派生（v1/v2，绑定本机盐，仅同设备恢复用）：SHA-256(pinHash + 固定盐) */
+    private suspend fun deriveKeyV1(): SecretKeySpec {
         val lockSettings = lockSettingsRepository.settings.first()
         val secret = when {
             lockSettings.hasPin -> lockSettings.pinHash + ":" + DEFAULT_KEY_SALT
             else -> DEFAULT_KEY_SALT
         }
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(secret.toByteArray(Charsets.UTF_8))
+        return SecretKeySpec(digest, "AES")
+    }
+
+    /** v3 密钥派生：SHA-256(PIN 明文 + 固定盐)，与设备无关，跨设备可重现 */
+    private fun deriveKeyV3(pin: String?): SecretKeySpec {
+        val secret = (pin ?: DEFAULT_KEY_SALT) + KEY_SALT_V3
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(secret.toByteArray(Charsets.UTF_8))
         return SecretKeySpec(digest, "AES")
@@ -286,49 +314,94 @@ class BackupManager(
 
     /**
      * 从指定 Uri 读取备份并覆盖恢复，返回恢复的账单条数。
-     * 自动识别：.mbk v2（ZIP 容器含附件）/ .mbk v1（旧加密 JSON）/ 旧 .json 明文。
+     * 自动识别：.mbk v3（跨设备，pin 可选）/ v2 / v1 / 旧 .json。
+     * v3 导入成功后，若本机尚未设置应用锁且用户提供了 PIN，则自动用该 PIN 设置应用锁。
      */
-    suspend fun importFrom(uri: Uri): Result<Int> = withContext(Dispatchers.IO) {
+    suspend fun importFrom(uri: Uri, pin: String? = null): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
             val input = context.contentResolver.openInputStream(uri)
                 ?: error("无法打开文件")
             val bytes = input.use { it.readBytes() }
-            val key = deriveKey()
 
-            fun decryptPayload(payload: ByteArray): ByteArray = try {
+            fun decryptPayload(payload: ByteArray, key: SecretKeySpec): ByteArray = try {
                 decryptAesGcm(payload, key)
             } catch (e: Exception) {
-                error("备份解密失败：应用锁密码不匹配或文件已损坏")
+                throw BackupPasswordException()
             }
 
             val restored: List<Bill>
-            if (bytes.size > MAGIC_V2.size &&
-                bytes.copyOfRange(0, MAGIC_V2.size).contentEquals(MAGIC_V2)
-            ) {
-                // v2：ZIP 容器（JSON + 附件）
-                val zipBytes = gunzip(decryptPayload(bytes.copyOfRange(MAGIC_V2.size, bytes.size)))
-                val (text, attachments) = readZipContainer(zipBytes)
-                restored = restoreFromJson(text)
-                val dir = File(context.filesDir, "attachments").apply { mkdirs() }
-                attachments.forEach { a ->
-                    val file = File(dir, "${a.billId}${a.ext}")
-                    file.writeBytes(a.data)
-                    database.billDao().updateAttachment(
-                        a.billId,
-                        file.toURI().toString(),
-                        mimeFromExt(a.ext)
-                    )
+            when {
+                bytes.size > MAGIC_V3.size &&
+                    bytes.copyOfRange(0, MAGIC_V3.size).contentEquals(MAGIC_V3) -> {
+                    // v3：密钥由 PIN 明文派生。尝试顺序：用户输入 PIN → 内置密钥
+                    val payload = bytes.copyOfRange(MAGIC_V3.size, bytes.size)
+                    val candidates = mutableListOf<String?>()
+                    if (pin != null) candidates += pin
+                    candidates += null
+                    var plain: ByteArray? = null
+                    for (candidate in candidates) {
+                        plain = try {
+                            decryptAesGcm(payload, deriveKeyV3(candidate))
+                        } catch (e: Exception) {
+                            null
+                        }
+                        if (plain != null) break
+                    }
+                    val zipBytes = gunzip(plain ?: throw BackupPasswordException())
+                    val (text, attachments) = readZipContainer(zipBytes)
+                    restored = restoreFromJson(text)
+                    val dir = File(context.filesDir, "attachments").apply { mkdirs() }
+                    attachments.forEach { a ->
+                        val file = File(dir, "${a.billId}${a.ext}")
+                        file.writeBytes(a.data)
+                        database.billDao().updateAttachment(
+                            a.billId,
+                            file.toURI().toString(),
+                            mimeFromExt(a.ext)
+                        )
+                    }
+                    // 换机场景：本机未设锁且用户输入了密码 → 自动同步为应用锁密码
+                    if (pin != null && !lockSettingsRepository.settings.first().hasPin) {
+                        lockSettingsRepository.setPin(pin)
+                    }
                 }
-            } else if (bytes.size > MAGIC_V1.size &&
-                bytes.copyOfRange(0, MAGIC_V1.size).contentEquals(MAGIC_V1)
-            ) {
-                // v1：旧加密 JSON（无附件打包）
-                val text = gunzip(decryptPayload(bytes.copyOfRange(MAGIC_V1.size, bytes.size)))
-                    .toString(Charsets.UTF_8)
-                restored = restoreFromJson(text)
-            } else {
-                // 旧版明文 JSON
-                restored = restoreFromJson(bytes.toString(Charsets.UTF_8))
+                bytes.size > MAGIC_V2.size &&
+                    bytes.copyOfRange(0, MAGIC_V2.size).contentEquals(MAGIC_V2) -> {
+                    // v2：旧密钥（绑定本机盐，仅同设备）
+                    val zipBytes = gunzip(
+                        decryptPayload(
+                            bytes.copyOfRange(MAGIC_V2.size, bytes.size),
+                            deriveKeyV1()
+                        )
+                    )
+                    val (text, attachments) = readZipContainer(zipBytes)
+                    restored = restoreFromJson(text)
+                    val dir = File(context.filesDir, "attachments").apply { mkdirs() }
+                    attachments.forEach { a ->
+                        val file = File(dir, "${a.billId}${a.ext}")
+                        file.writeBytes(a.data)
+                        database.billDao().updateAttachment(
+                            a.billId,
+                            file.toURI().toString(),
+                            mimeFromExt(a.ext)
+                        )
+                    }
+                }
+                bytes.size > MAGIC_V1.size &&
+                    bytes.copyOfRange(0, MAGIC_V1.size).contentEquals(MAGIC_V1) -> {
+                    // v1：旧加密 JSON（无附件打包）
+                    val text = gunzip(
+                        decryptPayload(
+                            bytes.copyOfRange(MAGIC_V1.size, bytes.size),
+                            deriveKeyV1()
+                        )
+                    ).toString(Charsets.UTF_8)
+                    restored = restoreFromJson(text)
+                }
+                else -> {
+                    // 旧版明文 JSON
+                    restored = restoreFromJson(bytes.toString(Charsets.UTF_8))
+                }
             }
             restored.size
         }

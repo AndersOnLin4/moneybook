@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -39,6 +40,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -55,6 +57,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -89,10 +93,16 @@ fun SettingsScreen(
 ) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
+    val lockHasPin by viewModel.lockHasPin.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showImportConfirm by remember { mutableStateOf(false) }
     var showCsvLedgerDialog by remember { mutableStateOf(false) }
+    var showExportPinDialog by remember { mutableStateOf(false) }
+    var exportPin by remember { mutableStateOf("") }
+    var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var showImportPinDialog by remember { mutableStateOf(false) }
+    var importPin by remember { mutableStateOf("") }
 
     val exportFileName = "moneybook_backup_" +
         LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".mbk"
@@ -107,6 +117,12 @@ fun SettingsScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is SettingsEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
+                is SettingsEvent.NeedPassword -> {
+                    // 换机导入：请求输入旧手机的应用锁密码
+                    pendingImportUri = event.uri
+                    importPin = ""
+                    showImportPinDialog = true
+                }
             }
         }
     }
@@ -168,9 +184,14 @@ fun SettingsScreen(
                     SettingsRow(
                         Icons.Filled.Upload,
                         "导出加密备份（.mbk）"
-                    ) { 
-                        activity?.createDocument("application/octet-stream", exportFileName) { uri ->
-                            uri?.let { viewModel.exportBackup(it) }
+                    ) {
+                        if (lockHasPin) {
+                            exportPin = ""
+                            showExportPinDialog = true
+                        } else {
+                            activity?.createDocument("application/octet-stream", exportFileName) { uri ->
+                                uri?.let { viewModel.exportBackup(it, null) }
+                            }
                         }
                     }
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
@@ -258,7 +279,7 @@ fun SettingsScreen(
                 TextButton(onClick = {
                     showImportConfirm = false
                     activity?.openDocument { uri ->
-                        uri?.let { viewModel.importBackup(it) }
+                        uri?.let { viewModel.importBackup(it, null) }
                     }
                 }) { Text("继续") }
             },
@@ -303,6 +324,90 @@ fun SettingsScreen(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showCsvLedgerDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // 导出：输入应用锁密码
+    if (showExportPinDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportPinDialog = false },
+            title = { Text("输入应用锁密码") },
+            text = {
+                Column {
+                    Text(
+                        text = "备份将用你的应用锁密码加密，换手机后凭同一密码即可恢复。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = exportPin,
+                        onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) exportPin = it },
+                        label = { Text("应用锁密码") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (exportPin.length >= 4) {
+                        showExportPinDialog = false
+                        activity?.createDocument("application/octet-stream", exportFileName) { uri ->
+                            uri?.let { viewModel.exportBackup(it, exportPin) }
+                        }
+                    }
+                }) { Text("继续导出") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportPinDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // 导入：换机时输入旧手机的应用锁密码
+    if (showImportPinDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showImportPinDialog = false
+                pendingImportUri = null
+            },
+            title = { Text("输入备份密码") },
+            text = {
+                Column {
+                    Text(
+                        text = "请输入导出此备份时使用的旧手机应用锁密码。恢复成功后，本机应用锁会自动设为该密码。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = importPin,
+                        onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) importPin = it },
+                        label = { Text("备份密码") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val uri = pendingImportUri
+                    showImportPinDialog = false
+                    pendingImportUri = null
+                    if (uri != null && importPin.length >= 4) {
+                        viewModel.importBackup(uri, importPin)
+                    }
+                }) { Text("恢复") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showImportPinDialog = false
+                    pendingImportUri = null
+                }) { Text("取消") }
             }
         )
     }

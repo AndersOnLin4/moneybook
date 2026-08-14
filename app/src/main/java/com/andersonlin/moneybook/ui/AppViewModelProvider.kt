@@ -56,7 +56,12 @@ object AppViewModelProvider {
             StatsViewModel(app().billRepository, app().categoryRepository, app().ledgerRepository)
         }
         initializer {
-            SettingsViewModel(app().settingsRepository, app().backupManager, app().ledgerRepository)
+            SettingsViewModel(
+                app().settingsRepository,
+                app().backupManager,
+                app().ledgerRepository,
+                app().lockSettingsRepository
+            )
         }
         initializer {
             CategoryViewModel(app().categoryRepository, app().billRepository, app().recurringRepository)
