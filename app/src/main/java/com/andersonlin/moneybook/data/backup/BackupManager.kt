@@ -242,10 +242,12 @@ class BackupManager(
         return (json ?: error("备份文件损坏：缺少 backup.json")) to attachments
     }
 
-    private fun safeExtension(uri: String?, mime: String?): String {
-        val fromName = uri?.substringAfterLast('/', "")
-            ?.substringAfterLast('.', "")
-            ?.takeIf { it.length in 1..6 && it.all { c -> c.isLetterOrDigit() } }
+    private fun safeExtension(uriString: String, mime: String?): String {
+        // 1. 从 Uri 文件名取扩展名
+        val fromName = uriString.substringAfterLast('/', "")
+            .substringAfterLast('.', "")
+            .takeIf { it.length in 1..6 && it.all { c -> c.isLetterOrDigit() } }
+        // 2. 从 MIME 映射
         val fromMime = when (mime) {
             "image/jpeg" -> "jpg"
             "image/png" -> "png"
@@ -255,7 +257,20 @@ class BackupManager(
             "text/plain" -> "txt"
             else -> null
         }
-        return "." + (fromName ?: fromMime ?: "bin")
+        // 3. 从系统查询 DISPLAY_NAME
+        val fromDisplay = runCatching {
+            context.contentResolver.query(
+                Uri.parse(uriString),
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull()?.substringAfterLast('.', "")
+            ?.takeIf { it.length in 1..6 && it.all { c -> c.isLetterOrDigit() } }
+        // 4. 图片兜底 jpg，其它 bin
+        val fallback = if (mime?.startsWith("image/") == true) "jpg" else "bin"
+        return "." + (fromName ?: fromMime ?: fromDisplay ?: fallback)
     }
 
     private fun mimeFromExt(ext: String): String = when (ext.lowercase()) {
@@ -350,16 +365,7 @@ class BackupManager(
                     val zipBytes = gunzip(plain ?: throw BackupPasswordException())
                     val (text, attachments) = readZipContainer(zipBytes)
                     restored = restoreFromJson(text)
-                    val dir = File(context.filesDir, "attachments").apply { mkdirs() }
-                    attachments.forEach { a ->
-                        val file = File(dir, "${a.billId}${a.ext}")
-                        file.writeBytes(a.data)
-                        database.billDao().updateAttachment(
-                            a.billId,
-                            file.toURI().toString(),
-                            mimeFromExt(a.ext)
-                        )
-                    }
+                    writeAttachments(attachments, restored)
                     // 换机场景：本机未设锁且用户输入了密码 → 自动同步为应用锁密码
                     if (pin != null && !lockSettingsRepository.settings.first().hasPin) {
                         lockSettingsRepository.setPin(pin)
@@ -376,16 +382,7 @@ class BackupManager(
                     )
                     val (text, attachments) = readZipContainer(zipBytes)
                     restored = restoreFromJson(text)
-                    val dir = File(context.filesDir, "attachments").apply { mkdirs() }
-                    attachments.forEach { a ->
-                        val file = File(dir, "${a.billId}${a.ext}")
-                        file.writeBytes(a.data)
-                        database.billDao().updateAttachment(
-                            a.billId,
-                            file.toURI().toString(),
-                            mimeFromExt(a.ext)
-                        )
-                    }
+                    writeAttachments(attachments, restored)
                 }
                 bytes.size > MAGIC_V1.size &&
                     bytes.copyOfRange(0, MAGIC_V1.size).contentEquals(MAGIC_V1) -> {
@@ -404,6 +401,25 @@ class BackupManager(
                 }
             }
             restored.size
+        }
+    }
+
+    /** 把备份中的附件写入应用私有目录，并更新账单附件地址。
+     *  MIME 优先采用账单 JSON 里的图片类型（兼容旧版 .bin 扩展名丢失问题）。 */
+    private suspend fun writeAttachments(attachments: List<AttachmentPayload>, bills: List<Bill>) {
+        if (attachments.isEmpty()) return
+        val billMimeMap = bills.associate { it.id to it.attachmentMime }
+        val dir = File(context.filesDir, "attachments").apply { mkdirs() }
+        attachments.forEach { a ->
+            val file = File(dir, "${a.billId}${a.ext}")
+            file.writeBytes(a.data)
+            val jsonMime = billMimeMap[a.billId]
+            val finalMime = when {
+                jsonMime?.startsWith("image/") == true ->
+                    if (jsonMime == "image/*") "image/jpeg" else jsonMime
+                else -> mimeFromExt(a.ext)
+            }
+            database.billDao().updateAttachment(a.billId, file.toURI().toString(), finalMime)
         }
     }
 

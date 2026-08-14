@@ -294,7 +294,11 @@ fun AddEditBillScreen(
                     onClick = {
                         activity?.pickImage { uri ->
                             if (uri != null) {
-                                viewModel.setAttachment(uri.toString(), "image/*")
+                                // 查询真实 MIME（content:// 图库 Uri 无扩展名）
+                                val mime = runCatching {
+                                    context.contentResolver.getType(uri)
+                                }.getOrNull() ?: "image/*"
+                                viewModel.setAttachment(uri.toString(), mime)
                             }
                         }
                     },
