@@ -1,5 +1,6 @@
 package com.andersonlin.moneybook.ui.home
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +23,7 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -30,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,6 +49,7 @@ fun HomeScreen(
     onAddBill: () -> Unit,
     onViewAll: () -> Unit,
     onBillClick: (Long) -> Unit,
+    onSetBudget: () -> Unit,
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -87,7 +91,9 @@ fun HomeScreen(
                     MonthSummaryCard(
                         month = state.month,
                         income = state.income,
-                        expense = state.expense
+                        expense = state.expense,
+                        budgetCents = state.budgetCents,
+                        onSetBudget = onSetBudget
                     )
                 }
                 item(key = "recent_header") {
@@ -119,7 +125,13 @@ fun HomeScreen(
 }
 
 @Composable
-private fun MonthSummaryCard(month: YearMonth, income: Long, expense: Long) {
+private fun MonthSummaryCard(
+    month: YearMonth,
+    income: Long,
+    expense: Long,
+    budgetCents: Long?,
+    onSetBudget: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -170,6 +182,56 @@ private fun MonthSummaryCard(month: YearMonth, income: Long, expense: Long) {
                         text = "-" + formatCents(expense),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+
+            // 预算进度 / 超支提醒
+            val budget = budgetCents
+            if (budget != null && budget > 0) {
+                Spacer(Modifier.height(16.dp))
+                val ratio = (expense.toDouble() / budget).coerceIn(0.0, 1.0)
+                LinearProgressIndicator(
+                    progress = { ratio.toFloat() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp)),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.25f)
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (expense > budget) {
+                            "已超支 ${formatCents(expense - budget)}"
+                        } else {
+                            "剩余 ${formatCents(budget - expense)}"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (expense > budget) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "预算 ${formatCents(budget)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onSetBudget) {
+                    Text(
+                        text = "设置本月预算",
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }

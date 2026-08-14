@@ -8,6 +8,7 @@ import com.andersonlin.moneybook.MoneyBookApp
 import com.andersonlin.moneybook.ui.account.AccountViewModel
 import com.andersonlin.moneybook.ui.bill.AddEditBillViewModel
 import com.andersonlin.moneybook.ui.bill.BillListViewModel
+import com.andersonlin.moneybook.ui.budget.BudgetViewModel
 import com.andersonlin.moneybook.ui.category.CategoryViewModel
 import com.andersonlin.moneybook.ui.home.HomeViewModel
 import com.andersonlin.moneybook.ui.settings.SettingsViewModel
@@ -18,7 +19,12 @@ object AppViewModelProvider {
 
     val Factory = viewModelFactory {
         initializer {
-            HomeViewModel(app().billRepository, app().categoryRepository, app().accountRepository)
+            HomeViewModel(
+                app().billRepository,
+                app().categoryRepository,
+                app().accountRepository,
+                app().budgetRepository
+            )
         }
         initializer {
             BillListViewModel(app().billRepository, app().categoryRepository, app().accountRepository)
@@ -32,6 +38,7 @@ object AppViewModelProvider {
             CategoryViewModel(app().categoryRepository, app().billRepository, app().recurringRepository)
         }
         initializer { AccountViewModel(app().accountRepository) }
+        initializer { BudgetViewModel(app().budgetRepository) }
     }
 }
 

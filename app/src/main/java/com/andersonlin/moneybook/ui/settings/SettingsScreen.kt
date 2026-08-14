@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -58,6 +59,7 @@ import java.time.format.DateTimeFormatter
 fun SettingsScreen(
     onManageCategories: () -> Unit,
     onManageAccounts: () -> Unit,
+    onManageBudget: () -> Unit,
     onAbout: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
@@ -134,6 +136,8 @@ fun SettingsScreen(
                     SettingsRow(Icons.Filled.Category, "分类管理", onManageCategories)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.AccountBalanceWallet, "账户管理", onManageAccounts)
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    SettingsRow(Icons.Filled.Savings, "月度预算", onManageBudget)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(
                         Icons.Filled.Upload,

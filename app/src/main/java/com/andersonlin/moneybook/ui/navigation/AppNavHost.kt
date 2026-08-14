@@ -28,6 +28,7 @@ import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.ui.account.AccountScreen
 import com.andersonlin.moneybook.ui.bill.AddEditBillScreen
 import com.andersonlin.moneybook.ui.bill.BillListScreen
+import com.andersonlin.moneybook.ui.budget.BudgetScreen
 import com.andersonlin.moneybook.ui.category.CategoryScreen
 import com.andersonlin.moneybook.ui.home.HomeScreen
 import com.andersonlin.moneybook.ui.settings.AboutScreen
@@ -42,6 +43,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val CATEGORIES = "categories"
     const val ACCOUNTS = "accounts"
+    const val BUDGET = "budget"
     const val ABOUT = "about"
     const val ADD_EDIT = "add_edit?billId={billId}&type={type}"
 
@@ -107,7 +109,8 @@ fun AppRoot() {
                 HomeScreen(
                     onAddBill = { navController.navigate(Routes.addEdit()) },
                     onViewAll = { navController.navigate(Routes.BILLS) },
-                    onBillClick = { id -> navController.navigate(Routes.addEdit(billId = id)) }
+                    onBillClick = { id -> navController.navigate(Routes.addEdit(billId = id)) },
+                    onSetBudget = { navController.navigate(Routes.BUDGET) }
                 )
             }
             composable(Routes.BILLS) {
@@ -123,6 +126,7 @@ fun AppRoot() {
                 SettingsScreen(
                     onManageCategories = { navController.navigate(Routes.CATEGORIES) },
                     onManageAccounts = { navController.navigate(Routes.ACCOUNTS) },
+                    onManageBudget = { navController.navigate(Routes.BUDGET) },
                     onAbout = { navController.navigate(Routes.ABOUT) }
                 )
             }
@@ -152,6 +156,9 @@ fun AppRoot() {
             }
             composable(Routes.ACCOUNTS) {
                 AccountScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.BUDGET) {
+                BudgetScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.ABOUT) {
                 AboutScreen(onBack = { navController.popBackStack() })
