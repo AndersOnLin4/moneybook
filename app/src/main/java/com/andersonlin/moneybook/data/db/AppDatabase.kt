@@ -10,6 +10,7 @@ import com.andersonlin.moneybook.data.model.Account
 import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.data.model.Budget
 import com.andersonlin.moneybook.data.model.Category
+import com.andersonlin.moneybook.data.model.CategoryBudget
 import com.andersonlin.moneybook.data.model.DefaultAccounts
 import com.andersonlin.moneybook.data.model.DefaultCategories
 import com.andersonlin.moneybook.data.model.DefaultLedgers
@@ -20,9 +21,9 @@ import com.andersonlin.moneybook.data.model.RecurringBill
 @Database(
     entities = [
         Bill::class, Category::class, Account::class, Budget::class,
-        RecurringBill::class, Ledger::class, Goal::class
+        RecurringBill::class, Ledger::class, Goal::class, CategoryBudget::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -34,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recurringBillDao(): RecurringBillDao
     abstract fun ledgerDao(): LedgerDao
     abstract fun goalDao(): GoalDao
+    abstract fun categoryBudgetDao(): CategoryBudgetDao
 
     companion object {
         @Volatile
@@ -47,7 +49,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "moneybook.db"
                 )
                     .addCallback(seedCallback)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }
@@ -237,6 +239,30 @@ abstract class AppDatabase : RoomDatabase() {
                         "name TEXT NOT NULL, icon TEXT NOT NULL, " +
                         "targetCents INTEGER NOT NULL, savedCents INTEGER NOT NULL, " +
                         "deadlineEpochDay INTEGER NOT NULL, createdAt INTEGER NOT NULL)"
+                )
+            }
+        }
+
+        /**
+         * v3 → v4：账单附件 + 分类独立预算。
+         * 1. bills 增加 attachmentUri / attachmentMime（可空，无默认值）
+         * 2. 新建 category_budgets 表（分类 × 年月 限额，唯一索引）
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE bills ADD COLUMN attachmentUri TEXT")
+                db.execSQL("ALTER TABLE bills ADD COLUMN attachmentMime TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS category_budgets (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "categoryId INTEGER NOT NULL, year INTEGER NOT NULL, " +
+                        "month INTEGER NOT NULL, amountCents INTEGER NOT NULL, " +
+                        "FOREIGN KEY(categoryId) REFERENCES categories(id) " +
+                        "ON UPDATE NO ACTION ON DELETE RESTRICT)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_category_budgets_categoryId_year_month " +
+                        "ON category_budgets (categoryId, year, month)"
                 )
             }
         }

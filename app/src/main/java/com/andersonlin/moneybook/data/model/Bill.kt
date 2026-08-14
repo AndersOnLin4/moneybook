@@ -50,7 +50,9 @@ data class Bill(
     val ledgerId: Long = DEFAULT_LEDGER_ID,
     val note: String = "",
     val dateEpochDay: Long,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val attachmentUri: String? = null,
+    val attachmentMime: String? = null
 ) {
     companion object {
         const val TYPE_EXPENSE = 0

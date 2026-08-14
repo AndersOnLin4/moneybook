@@ -109,5 +109,8 @@ dependencies {
     // 记账提醒（Jetpack WorkManager，本地通知，免费）
     implementation(libs.androidx.work.runtime.ktx)
 
+    // 账单附件图片缩略图（Coil，开源免费；仅加载本地 Uri，不发起网络请求）
+    implementation(libs.coil.compose)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

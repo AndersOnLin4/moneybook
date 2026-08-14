@@ -8,6 +8,7 @@ import com.andersonlin.moneybook.data.reminder.ReminderScheduler
 import com.andersonlin.moneybook.data.repository.AccountRepository
 import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.BudgetRepository
+import com.andersonlin.moneybook.data.repository.CategoryBudgetRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
 import com.andersonlin.moneybook.data.repository.GoalRepository
 import com.andersonlin.moneybook.data.repository.LedgerRepository
@@ -40,6 +41,9 @@ class MoneyBookApp : Application() {
     }
     val goalRepository: GoalRepository by lazy { GoalRepository(database.goalDao()) }
     val savingDepositService: SavingDepositService by lazy { SavingDepositService(database) }
+    val categoryBudgetRepository: CategoryBudgetRepository by lazy {
+        CategoryBudgetRepository(database.categoryBudgetDao())
+    }
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
     val lockSettingsRepository: LockSettingsRepository by lazy { LockSettingsRepository(this) }
     val reminderRepository: ReminderRepository by lazy { ReminderRepository(this) }
