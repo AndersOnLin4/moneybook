@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.andersonlin.moneybook.data.backup.BackupManager
+import com.andersonlin.moneybook.data.repository.LedgerRepository
 import com.andersonlin.moneybook.data.settings.SettingsRepository
 import com.andersonlin.moneybook.data.settings.ThemeMode
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -17,10 +18,11 @@ sealed interface SettingsEvent {
     data class ShowMessage(val message: String) : SettingsEvent
 }
 
-/** 设置页：主题切换、JSON 备份导出 / 导入恢复 */
+/** 设置页：主题切换、账本切换、JSON 备份导出 / 导入恢复、CSV 导出 */
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
-    private val backupManager: BackupManager
+    private val backupManager: BackupManager,
+    private val ledgerRepository: LedgerRepository
 ) : ViewModel() {
 
     val themeMode: StateFlow<ThemeMode> = settingsRepository.themeMode
@@ -53,7 +55,8 @@ class SettingsViewModel(
 
     fun exportCsv(uri: Uri) {
         viewModelScope.launch {
-            val result = backupManager.exportCsvTo(uri)
+            val ledgerId = ledgerRepository.getActiveLedgerId()
+            val result = backupManager.exportCsvTo(uri, ledgerId)
             _events.emit(
                 SettingsEvent.ShowMessage(
                     result.fold(

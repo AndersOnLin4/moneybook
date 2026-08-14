@@ -40,6 +40,7 @@ class RecurringRepository(
                             amountCents = cursor.amountCents,
                             categoryId = cursor.categoryId,
                             accountId = cursor.accountId,
+                            ledgerId = cursor.ledgerId,
                             note = cursor.note,
                             dateEpochDay = next
                         )

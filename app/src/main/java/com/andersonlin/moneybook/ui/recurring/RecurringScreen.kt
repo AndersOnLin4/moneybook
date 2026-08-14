@@ -145,6 +145,7 @@ fun RecurringScreen(
                         item = item,
                         category = state.categories[item.categoryId],
                         account = state.accounts[item.accountId],
+                        ledgerName = state.ledgers[item.ledgerId]?.name,
                         onToggle = { enabled -> viewModel.toggleEnabled(item, enabled) },
                         onClick = {
                             editing = item
@@ -197,6 +198,7 @@ private fun RecurringRow(
     item: RecurringBill,
     category: com.andersonlin.moneybook.data.model.Category?,
     account: com.andersonlin.moneybook.data.model.Account?,
+    ledgerName: String?,
     onToggle: (Boolean) -> Unit,
     onClick: () -> Unit,
     onDelete: () -> Unit
@@ -221,6 +223,7 @@ private fun RecurringRow(
                     maxLines = 1
                 )
                 val subtitle = listOfNotNull(
+                    ledgerName,
                     account?.name,
                     item.note.takeIf { it.isNotBlank() },
                     "开始 " + fullDateLabel(item.startEpochDay)
@@ -423,6 +426,8 @@ private fun RecurringEditorDialog(
                         amountCents = cents,
                         categoryId = catId,
                         accountId = accountId,
+                        // 0 表示使用当前活动账本（由 ViewModel 填充）
+                        ledgerId = editing?.ledgerId ?: 0L,
                         note = note.trim(),
                         cycle = cycle,
                         startEpochDay = startEpochDay,

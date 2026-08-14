@@ -6,6 +6,7 @@ import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.data.model.Category
 import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
+import com.andersonlin.moneybook.data.repository.LedgerRepository
 import com.andersonlin.moneybook.util.endEpochDay
 import com.andersonlin.moneybook.util.fullDateLabel
 import com.andersonlin.moneybook.util.monthLabel
@@ -72,7 +73,8 @@ data class StatsUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 class StatsViewModel(
     private val billRepository: BillRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val ledgerRepository: LedgerRepository
 ) : ViewModel() {
 
     companion object {
@@ -96,18 +98,21 @@ class StatsViewModel(
     private val chartType = MutableStateFlow(CHART_PIE)
 
     val uiState: StateFlow<StatsUiState> = combine(
-        combine(scale, anchor, type, chartType) { s, a, t, c -> StatsQuery(s, a, t, c) }
+        combine(scale, anchor, type, chartType, ledgerRepository.activeLedgerId) { s, a, t, c, l ->
+            StatsQuery(s, a, t, c, l)
+        }
             .flatMapLatest { q ->
                 val range = rangeFor(q.scale, q.anchor)
                 // 图表窗口（柱状/趋势共用）：年维度用逐月聚合，其余用逐日聚合
                 val year = q.anchor.year
                 combine(
-                    billRepository.getCategoryStats(q.type, range.startDay, range.endDay),
+                    billRepository.getCategoryStats(q.ledgerId, q.type, range.startDay, range.endDay),
                     billRepository.getMonthlyTotals(
+                        q.ledgerId,
                         LocalDate.of(year, 1, 1).toEpochDay(),
                         LocalDate.of(year, 12, 31).toEpochDay()
                     ),
-                    billRepository.getDailyTotals(dailyStart(q), dailyEnd(q))
+                    billRepository.getDailyTotals(q.ledgerId, dailyStart(q), dailyEnd(q))
                 ) { pie, monthly, daily -> QueryResult(range, q, pie, monthly, daily) }
             },
         categoryRepository.getAllCategories()
@@ -254,7 +259,8 @@ private data class StatsQuery(
     val scale: Int,
     val anchor: LocalDate,
     val type: Int,
-    val chartType: Int
+    val chartType: Int,
+    val ledgerId: Long
 )
 
 private data class QueryResult(

@@ -8,6 +8,7 @@ import com.andersonlin.moneybook.data.model.Category
 import com.andersonlin.moneybook.data.repository.AccountRepository
 import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
+import com.andersonlin.moneybook.data.repository.LedgerRepository
 import com.andersonlin.moneybook.util.toYearMonth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,25 +66,28 @@ data class BillListUiState(
 class BillListViewModel(
     private val billRepository: BillRepository,
     private val categoryRepository: CategoryRepository,
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val ledgerRepository: LedgerRepository
 ) : ViewModel() {
 
     private val filter = MutableStateFlow(BillFilter())
 
-    val uiState: StateFlow<BillListUiState> = combine(
-        filter.flatMapLatest {
-            billRepository.searchBills(it.type, it.keyword.trim(), it.minCents, it.maxCents)
-        },
-        categoryRepository.getAllCategories(),
-        accountRepository.getAllAccounts()
-    ) { bills, cats, accounts ->
-        BillListUiState(
-            items = groupBills(bills, cats, accounts),
-            typeFilter = filter.value.type,
-            keyword = filter.value.keyword,
-            minCents = filter.value.minCents,
-            maxCents = filter.value.maxCents
-        )
+    val uiState: StateFlow<BillListUiState> = combine(filter, ledgerRepository.activeLedgerId) { f, id ->
+        f to id
+    }.flatMapLatest { (f, ledgerId) ->
+        combine(
+            billRepository.searchBills(ledgerId, f.type, f.keyword.trim(), f.minCents, f.maxCents),
+            categoryRepository.getAllCategories(),
+            accountRepository.getAllAccounts()
+        ) { bills, cats, accounts ->
+            BillListUiState(
+                items = groupBills(bills, cats, accounts),
+                typeFilter = f.type,
+                keyword = f.keyword,
+                minCents = f.minCents,
+                maxCents = f.maxCents
+            )
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

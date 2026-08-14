@@ -7,6 +7,8 @@ import com.andersonlin.moneybook.data.repository.AccountRepository
 import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.BudgetRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
+import com.andersonlin.moneybook.data.repository.GoalRepository
+import com.andersonlin.moneybook.data.repository.LedgerRepository
 import com.andersonlin.moneybook.data.repository.RecurringRepository
 import com.andersonlin.moneybook.data.settings.LockSettingsRepository
 import com.andersonlin.moneybook.data.settings.SettingsRepository
@@ -29,6 +31,10 @@ class MoneyBookApp : Application() {
     val recurringRepository: RecurringRepository by lazy {
         RecurringRepository(database, database.recurringBillDao())
     }
+    val ledgerRepository: LedgerRepository by lazy {
+        LedgerRepository(this, database, database.ledgerDao())
+    }
+    val goalRepository: GoalRepository by lazy { GoalRepository(database.goalDao()) }
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
     val lockSettingsRepository: LockSettingsRepository by lazy { LockSettingsRepository(this) }
     val backupManager: BackupManager by lazy { BackupManager(this, database) }

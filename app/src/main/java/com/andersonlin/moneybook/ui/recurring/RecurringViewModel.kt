@@ -3,10 +3,13 @@ package com.andersonlin.moneybook.ui.recurring
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.andersonlin.moneybook.data.model.Account
+import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.data.model.Category
+import com.andersonlin.moneybook.data.model.Ledger
 import com.andersonlin.moneybook.data.model.RecurringBill
 import com.andersonlin.moneybook.data.repository.AccountRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
+import com.andersonlin.moneybook.data.repository.LedgerRepository
 import com.andersonlin.moneybook.data.repository.RecurringRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -19,7 +22,8 @@ import kotlinx.coroutines.launch
 data class RecurringListUiState(
     val items: List<RecurringBill> = emptyList(),
     val categories: Map<Long, Category> = emptyMap(),
-    val accounts: Map<Long, Account> = emptyMap()
+    val accounts: Map<Long, Account> = emptyMap(),
+    val ledgers: Map<Long, Ledger> = emptyMap()
 )
 
 sealed interface RecurringEvent {
@@ -30,18 +34,31 @@ sealed interface RecurringEvent {
 class RecurringViewModel(
     private val recurringRepository: RecurringRepository,
     private val categoryRepository: CategoryRepository,
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val ledgerRepository: LedgerRepository
 ) : ViewModel() {
 
+    private data class RefData(
+        val items: List<RecurringBill>,
+        val categories: Map<Long, Category>,
+        val accounts: Map<Long, Account>
+    )
+
     val uiState: StateFlow<RecurringListUiState> = combine(
-        recurringRepository.getAll(),
-        categoryRepository.getAllCategories(),
-        accountRepository.getAllAccounts()
-    ) { items, categories, accounts ->
+        combine(
+            recurringRepository.getAll(),
+            categoryRepository.getAllCategories(),
+            accountRepository.getAllAccounts()
+        ) { items, categories, accounts ->
+            RefData(items, categories.associateBy { it.id }, accounts.associateBy { it.id })
+        },
+        ledgerRepository.getAllLedgers()
+    ) { ref, ledgers ->
         RecurringListUiState(
-            items = items,
-            categories = categories.associateBy { it.id },
-            accounts = accounts.associateBy { it.id }
+            items = ref.items,
+            categories = ref.categories,
+            accounts = ref.accounts,
+            ledgers = ledgers.associateBy { it.id }
         )
     }.stateIn(
         scope = viewModelScope,
@@ -54,7 +71,12 @@ class RecurringViewModel(
 
     fun add(item: RecurringBill) {
         viewModelScope.launch {
-            recurringRepository.add(item)
+            val ledgerId = if (item.ledgerId > 0L) {
+                item.ledgerId
+            } else {
+                ledgerRepository.getActiveLedgerId()
+            }
+            recurringRepository.add(item.copy(ledgerId = ledgerId))
             _events.emit(RecurringEvent.ShowMessage("已添加周期账单"))
         }
     }

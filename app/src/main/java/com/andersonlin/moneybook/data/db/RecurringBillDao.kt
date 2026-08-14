@@ -3,6 +3,7 @@ package com.andersonlin.moneybook.data.db
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.andersonlin.moneybook.data.model.RecurringBill
@@ -33,6 +34,16 @@ interface RecurringBillDao {
     @Query("DELETE FROM recurring_bills WHERE categoryId = :categoryId")
     suspend fun deleteByCategory(categoryId: Long)
 
+    @Query("DELETE FROM recurring_bills WHERE ledgerId = :ledgerId")
+    suspend fun deleteByLedger(ledgerId: Long)
+
     @Query("UPDATE recurring_bills SET accountId = :newId WHERE accountId = :oldId")
     suspend fun reassignAccount(oldId: Long, newId: Long)
+
+    // ---- 备份 / 恢复 ----
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<RecurringBill>)
+
+    @Query("DELETE FROM recurring_bills")
+    suspend fun deleteAll()
 }

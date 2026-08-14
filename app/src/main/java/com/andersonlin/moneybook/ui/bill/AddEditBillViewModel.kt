@@ -8,6 +8,7 @@ import com.andersonlin.moneybook.data.model.Category
 import com.andersonlin.moneybook.data.repository.AccountRepository
 import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
+import com.andersonlin.moneybook.data.repository.LedgerRepository
 import com.andersonlin.moneybook.util.formatCentsPlain
 import com.andersonlin.moneybook.util.toCents
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -47,7 +48,8 @@ sealed interface AddEditEvent {
 class AddEditBillViewModel(
     private val billRepository: BillRepository,
     private val categoryRepository: CategoryRepository,
-    private val accountRepository: AccountRepository
+    private val accountRepository: AccountRepository,
+    private val ledgerRepository: LedgerRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddEditUiState())
@@ -165,6 +167,7 @@ class AddEditBillViewModel(
         }
         viewModelScope.launch {
             val existing = bill
+            val ledgerId = ledgerRepository.getActiveLedgerId()
             if (existing == null) {
                 billRepository.insert(
                     Bill(
@@ -172,6 +175,7 @@ class AddEditBillViewModel(
                         amountCents = cents,
                         categoryId = categoryId,
                         accountId = state.accountId,
+                        ledgerId = ledgerId,
                         note = state.note.trim(),
                         dateEpochDay = state.dateEpochDay
                     )

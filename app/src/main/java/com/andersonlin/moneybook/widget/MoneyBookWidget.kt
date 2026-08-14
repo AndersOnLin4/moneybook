@@ -62,18 +62,21 @@ class MoneyBookWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val app = context.applicationContext as MoneyBookApp
         val month = YearMonth.now()
+        val ledgerId = app.ledgerRepository.getActiveLedgerId()
         val sums = app.billRepository
-            .getMonthSummary(month.startEpochDay(), month.endEpochDay())
+            .getMonthSummary(ledgerId, month.startEpochDay(), month.endEpochDay())
             .first()
         val income = sums.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L
         val expense = sums.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L
         val budgetCents = app.budgetRepository.getForMonth(month.year, month.monthValue)?.amountCents
+        val ledgerName = app.ledgerRepository.getById(ledgerId)?.name ?: "账本"
         provideContent {
             WidgetContent(
                 month = month,
                 income = income,
                 expense = expense,
                 budgetCents = budgetCents,
+                ledgerName = ledgerName,
                 context = context
             )
         }
@@ -87,6 +90,7 @@ private fun WidgetContent(
     income: Long,
     expense: Long,
     budgetCents: Long?,
+    ledgerName: String,
     context: Context
 ) {
     GlanceTheme {
@@ -101,7 +105,7 @@ private fun WidgetContent(
                 verticalAlignment = Alignment.Vertical.CenterVertically
             ) {
                 Text(
-                    text = "记账本",
+                    text = "记账本 · $ledgerName",
                     style = TextStyle(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,

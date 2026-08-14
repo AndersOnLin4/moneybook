@@ -25,17 +25,32 @@ object AppViewModelProvider {
                 app().billRepository,
                 app().categoryRepository,
                 app().accountRepository,
-                app().budgetRepository
+                app().budgetRepository,
+                app().ledgerRepository
             )
         }
         initializer {
-            BillListViewModel(app().billRepository, app().categoryRepository, app().accountRepository)
+            BillListViewModel(
+                app().billRepository,
+                app().categoryRepository,
+                app().accountRepository,
+                app().ledgerRepository
+            )
         }
         initializer {
-            AddEditBillViewModel(app().billRepository, app().categoryRepository, app().accountRepository)
+            AddEditBillViewModel(
+                app().billRepository,
+                app().categoryRepository,
+                app().accountRepository,
+                app().ledgerRepository
+            )
         }
-        initializer { StatsViewModel(app().billRepository, app().categoryRepository) }
-        initializer { SettingsViewModel(app().settingsRepository, app().backupManager) }
+        initializer {
+            StatsViewModel(app().billRepository, app().categoryRepository, app().ledgerRepository)
+        }
+        initializer {
+            SettingsViewModel(app().settingsRepository, app().backupManager, app().ledgerRepository)
+        }
         initializer {
             CategoryViewModel(app().categoryRepository, app().billRepository, app().recurringRepository)
         }
@@ -45,7 +60,8 @@ object AppViewModelProvider {
             RecurringViewModel(
                 app().recurringRepository,
                 app().categoryRepository,
-                app().accountRepository
+                app().accountRepository,
+                app().ledgerRepository
             )
         }
         initializer { LockViewModel(app().lockSettingsRepository) }
