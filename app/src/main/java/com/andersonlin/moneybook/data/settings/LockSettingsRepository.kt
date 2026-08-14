@@ -44,10 +44,17 @@ class LockSettingsRepository(private val context: Context) {
     }
 
     suspend fun setEnabled(enabled: Boolean) {
-        context.lockDataStore.edit { it[enabledKey] = enabled }
+        context.lockDataStore.edit {
+            it[enabledKey] = enabled
+            // 关闭应用锁时同时关闭指纹，保证下次开启时状态一致
+            if (!enabled) it[biometricKey] = false
+        }
     }
 
-    /** 设置新 PIN（4-6 位数字），生成随机盐并存储哈希 */
+    /**
+     * 设置新 PIN（4-6 位数字），生成随机盐并存储哈希。
+     * 联动规则：设置了密码即默认启用应用锁（有密码不启用锁是无效配置）。
+     */
     suspend fun setPin(pin: String) {
         val saltBytes = ByteArray(16).also { SecureRandom().nextBytes(it) }
         val salt = saltBytes.joinToString("") { "%02x".format(it) }
@@ -55,11 +62,17 @@ class LockSettingsRepository(private val context: Context) {
             it[pinHashKey] = hashPin(pin, salt)
             it[saltKey] = salt
             it[pinLengthKey] = pin.length
+            it[enabledKey] = true
         }
     }
 
     suspend fun setBiometricEnabled(enabled: Boolean) {
-        context.lockDataStore.edit { it[biometricKey] = enabled }
+        context.lockDataStore.edit {
+            // 没有密码不允许开启指纹（指纹只是密码的快捷方式，不是独立凭证）
+            val hasPin = it[pinHashKey] != null
+            if (enabled && !hasPin) return@edit
+            it[biometricKey] = enabled
+        }
     }
 
     fun verifyPin(pin: String, settings: LockSettings): Boolean {

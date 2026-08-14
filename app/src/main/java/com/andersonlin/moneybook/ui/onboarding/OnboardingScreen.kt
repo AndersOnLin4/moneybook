@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -60,6 +61,7 @@ import com.andersonlin.moneybook.data.reminder.ReminderScheduler
 import com.andersonlin.moneybook.data.settings.ThemeMode
 import com.andersonlin.moneybook.ui.AppViewModelProvider
 import com.andersonlin.moneybook.ui.recurring.cycleLabel
+import com.andersonlin.moneybook.util.formatCents
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
@@ -121,7 +123,8 @@ fun OnboardingScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 28.dp)
+                .padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             when (page) {
                 0 -> WelcomePage()
@@ -137,28 +140,43 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun PageTitle(title: String, subtitle: String) {
-    Spacer(Modifier.height(36.dp))
-    Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-    Spacer(Modifier.height(8.dp))
+private fun PageTitle(icon: String, title: String, subtitle: String) {
+    Spacer(Modifier.height(44.dp))
+    Text(
+        text = icon,
+        fontSize = 60.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(18.dp))
+    Text(
+        text = title,
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(10.dp))
     Text(
         text = subtitle,
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
     )
-    Spacer(Modifier.height(24.dp))
+    Spacer(Modifier.height(28.dp))
 }
 
 @Composable
 private fun WelcomePage() {
-    Spacer(Modifier.height(72.dp))
+    Spacer(Modifier.height(88.dp))
     Text(
         text = "💰",
-        fontSize = 72.sp,
+        fontSize = 96.sp,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth()
     )
-    Spacer(Modifier.height(20.dp))
+    Spacer(Modifier.height(28.dp))
     Text(
         text = "欢迎使用记账本",
         style = MaterialTheme.typography.headlineMedium,
@@ -166,12 +184,14 @@ private fun WelcomePage() {
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth()
     )
+    Spacer(Modifier.height(40.dp))
+    Column(Modifier.widthIn(max = 420.dp)) {
+        WelcomeFeature("🔒 零网络 · 零账号", "不联网、不登录，所有数据只保存在你的手机")
+        WelcomeFeature("📊 图表化复盘", "饼图、趋势、日历热力图，钱花在哪一目了然")
+        WelcomeFeature("🎯 预算与目标", "月度预算、分类限额、存钱目标，帮你管住手")
+        WelcomeFeature("🔐 加密备份", "AES-256 加密导出，换机不丢数据")
+    }
     Spacer(Modifier.height(28.dp))
-    WelcomeFeature("🔒 零网络 · 零账号", "不联网、不登录，所有数据只保存在你的手机")
-    WelcomeFeature("📊 图表化复盘", "饼图、趋势、日历热力图，钱花在哪一目了然")
-    WelcomeFeature("🎯 预算与目标", "月度预算、分类限额、存钱目标，帮你管住手")
-    WelcomeFeature("🔐 加密备份", "AES-256 加密导出，换机不丢数据")
-    Spacer(Modifier.height(16.dp))
     Text(
         text = "接下来用 5 个小步骤完成初始配置，每一步都可以跳过。",
         style = MaterialTheme.typography.bodySmall,
@@ -183,27 +203,35 @@ private fun WelcomePage() {
 
 @Composable
 private fun WelcomeFeature(title: String, desc: String) {
-    Column(Modifier.padding(vertical = 10.dp)) {
-        Text(title, style = MaterialTheme.typography.titleSmall)
+    Column(
+        Modifier.padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(4.dp))
         Text(
             text = desc,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
         )
     }
 }
 
 @Composable
 private fun LedgerPage(viewModel: OnboardingViewModel) {
-    PageTitle("创建你的账本", "一个账本记一类生活：旅行、家庭、工作……已有「默认账本」，也可以再创建。")
+    PageTitle("📒", "创建你的账本", "一个账本记一类生活：旅行、家庭、工作……已有「默认账本」，也可以再创建。")
     val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
     var name by remember { mutableStateOf("") }
-    Column {
+    Column(Modifier.widthIn(max = 420.dp)) {
         ledgers.forEach { ledger ->
             Text(
                 text = "${ledger.icon} ${ledger.name}",
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(vertical = 6.dp)
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
             )
         }
         Spacer(Modifier.height(12.dp))
@@ -227,9 +255,9 @@ private fun LedgerPage(viewModel: OnboardingViewModel) {
 
 @Composable
 private fun BudgetPage(viewModel: OnboardingViewModel) {
-    PageTitle("设置月度预算", "给每个月的总支出设一个上限，首页会显示进度，超支自动提醒。")
+    PageTitle("💰", "设置月度预算", "给每个月的总支出设一个上限，首页会显示进度，超支自动提醒。")
     var amount by remember { mutableStateOf("") }
-    Column {
+    Column(Modifier.widthIn(max = 420.dp)) {
         OutlinedTextField(
             value = amount,
             onValueChange = { text ->
@@ -255,12 +283,13 @@ private fun BudgetPage(viewModel: OnboardingViewModel) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RecurringPage(viewModel: OnboardingViewModel) {
-    PageTitle("周期账单", "房租、工资、会员订阅……设置一次，每月自动记账。")
+    PageTitle("🔁", "周期账单", "房租、工资、会员订阅……设置一次，每月自动记账。")
     val categories by viewModel.expenseCategories.collectAsStateWithLifecycle()
+    val recurringBills by viewModel.recurringBills.collectAsStateWithLifecycle()
     var amount by remember { mutableStateOf("") }
     var categoryId by remember { mutableStateOf<Long?>(null) }
     var cycle by remember { mutableIntStateOf(com.andersonlin.moneybook.data.model.RecurringBill.CYCLE_MONTHLY) }
-    Column {
+    Column(Modifier.widthIn(max = 420.dp)) {
         OutlinedTextField(
             value = amount,
             onValueChange = { text ->
@@ -312,15 +341,38 @@ private fun RecurringPage(viewModel: OnboardingViewModel) {
         ) {
             Text("添加周期账单")
         }
+
+        if (recurringBills.isNotEmpty()) {
+            Spacer(Modifier.height(20.dp))
+            Text(
+                text = "已添加 ${recurringBills.size} 条",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            recurringBills.forEach { r ->
+                val cat = categories.firstOrNull { it.id == r.categoryId }
+                Text(
+                    text = "${cat?.icon ?: "❓"} ${cat?.name ?: "分类"} · ${cycleLabel(r.cycle)} · " +
+                        formatCents(r.amountCents),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun GoalPage(viewModel: OnboardingViewModel) {
-    PageTitle("存钱目标", "想买新手机？设个目标，自动算好每个月要存多少。")
+    PageTitle("🎯", "存钱目标", "想买新手机？设个目标，自动算好每个月要存多少。")
+    val goals by viewModel.goals.collectAsStateWithLifecycle()
     var name by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-    Column {
+    Column(Modifier.widthIn(max = 420.dp)) {
         OutlinedTextField(
             value = name,
             onValueChange = { if (it.length <= 10) name = it },
@@ -353,13 +405,33 @@ private fun GoalPage(viewModel: OnboardingViewModel) {
         ) {
             Text("创建目标")
         }
+
+        if (goals.isNotEmpty()) {
+            Spacer(Modifier.height(20.dp))
+            Text(
+                text = "已创建 ${goals.size} 个目标",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            goals.forEach { goal ->
+                Text(
+                    text = "${goal.icon} ${goal.name} · ${formatCents(goal.targetCents)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                )
+            }
+        }
     }
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun SecurityPage(viewModel: OnboardingViewModel) {
-    PageTitle("安全与外观", "设置应用锁保护隐私，选择喜欢的主题。")
+    PageTitle("🔐", "安全与外观", "设置应用锁保护隐私，选择喜欢的主题。")
     val lockSettings by viewModel.lockSettings.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -376,7 +448,7 @@ private fun SecurityPage(viewModel: OnboardingViewModel) {
         }.getOrDefault(false)
     }
 
-    Column {
+    Column(Modifier.widthIn(max = 420.dp)) {
         Text("应用锁密码（可选）", style = MaterialTheme.typography.titleSmall)
         OutlinedTextField(
             value = pin,

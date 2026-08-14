@@ -48,6 +48,12 @@ class OnboardingViewModel(
         .getCategoriesByType(Bill.TYPE_EXPENSE)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val recurringBills: StateFlow<List<RecurringBill>> = recurringRepository.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val goals: StateFlow<List<Goal>> = goalRepository.getAllGoals()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val lockSettings: StateFlow<LockSettings> = lockSettingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LockSettings())
 
@@ -146,7 +152,10 @@ class OnboardingViewModel(
             emit("密码需为 4-6 位数字")
             return false
         }
-        viewModelScope.launch { lockSettingsRepository.setPin(pin) }
+        viewModelScope.launch {
+            lockSettingsRepository.setPin(pin)
+            _events.emit(OnboardingEvent.ShowMessage("已设置密码，应用锁已自动启用"))
+        }
         return true
     }
 
