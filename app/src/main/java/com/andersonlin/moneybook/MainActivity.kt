@@ -16,7 +16,6 @@ import com.andersonlin.moneybook.data.settings.ThemeMode
 import com.andersonlin.moneybook.ui.lock.LockScreen
 import com.andersonlin.moneybook.ui.navigation.AppRoot
 import com.andersonlin.moneybook.ui.theme.MoneyBookTheme
-import com.andersonlin.moneybook.widget.MoneyBookWidget
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -89,9 +88,7 @@ class MainActivity : ComponentActivity() {
         }
         wentBackground = false
         // 刷新桌面小组件数据
-        lifecycleScope.launch {
-            MoneyBookWidget.updateAllWidgets(this@MainActivity)
-        }
+        (application as MoneyBookApp).requestWidgetUpdate()
     }
 
     override fun onStop() {

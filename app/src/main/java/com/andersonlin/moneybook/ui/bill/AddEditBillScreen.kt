@@ -54,10 +54,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.andersonlin.moneybook.MoneyBookApp
 import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.ui.AppViewModelProvider
 import com.andersonlin.moneybook.util.fullDateLabel
@@ -75,6 +77,7 @@ fun AddEditBillScreen(
     val amountFocusRequester = remember { FocusRequester() }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
+    val appContext = LocalContext.current.applicationContext
 
     LaunchedEffect(billId) { viewModel.init(billId, defaultType) }
 
@@ -82,12 +85,19 @@ fun AddEditBillScreen(
         viewModel.events.collect { event ->
             when (event) {
                 is AddEditEvent.ShowMessage -> snackbarHostState.showSnackbar(event.message)
-                AddEditEvent.Saved -> onBack()
+                AddEditEvent.Saved -> {
+                    (appContext as? MoneyBookApp)?.requestWidgetUpdate()
+                    onBack()
+                }
                 AddEditEvent.SavedContinue -> {
+                    (appContext as? MoneyBookApp)?.requestWidgetUpdate()
                     snackbarHostState.showSnackbar("已保存，继续记下一笔")
                     amountFocusRequester.requestFocus()
                 }
-                AddEditEvent.Deleted -> onBack()
+                AddEditEvent.Deleted -> {
+                    (appContext as? MoneyBookApp)?.requestWidgetUpdate()
+                    onBack()
+                }
             }
         }
     }

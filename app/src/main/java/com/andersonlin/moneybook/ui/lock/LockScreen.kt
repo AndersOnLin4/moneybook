@@ -1,5 +1,8 @@
 package com.andersonlin.moneybook.ui.lock
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
@@ -11,9 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
@@ -35,13 +36,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.andersonlin.moneybook.ui.AppViewModelProvider
+
+/** 从任意 Context 向上找 Activity（LocalContext 可能被包装） */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 /** 解锁页：数字键盘 + 指纹（若启用且可用） */
 @Composable
@@ -53,8 +61,9 @@ fun LockScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var entered by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
     val pinLength = settings.pinLength.coerceAtLeast(4)
+    val activity = remember(context) { context.findActivity() as? FragmentActivity }
 
     val biometricAvailable = remember {
         runCatching {
@@ -69,7 +78,7 @@ fun LockScreen(
             when (event) {
                 is LockEvent.ShowMessage -> {
                     if (event.message.contains("密码错误")) {
-                        error = true
+                        error = "密码错误，请重试"
                         entered = ""
                     } else {
                         snackbarHostState.showSnackbar(event.message)
@@ -90,7 +99,7 @@ fun LockScreen(
     fun append(digit: Char) {
         if (entered.length < 6) {
             entered += digit
-            error = false
+            error = null
         }
     }
 
@@ -110,9 +119,9 @@ fun LockScreen(
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                text = if (error) "密码错误，请重试" else "输入密码",
+                text = error ?: "输入密码",
                 style = MaterialTheme.typography.titleMedium,
-                color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                color = if (error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -139,7 +148,16 @@ fun LockScreen(
                             CircleShape
                         )
                         .clickable {
-                            showBiometricPrompt(context as FragmentActivity, onUnlocked)
+                            if (activity == null) {
+                                error = "无法启动指纹验证（Activity 不可用）"
+                            } else {
+                                error = null
+                                showBiometricPrompt(
+                                    activity = activity,
+                                    onError = { error = it },
+                                    onSuccess = onUnlocked
+                                )
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -150,6 +168,12 @@ fun LockScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "指纹解锁",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             Spacer(Modifier.height(24.dp))
@@ -157,7 +181,7 @@ fun LockScreen(
                 onDigit = ::append,
                 onBackspace = {
                     entered = entered.dropLast(1)
-                    error = false
+                    error = null
                 }
             )
         }
@@ -217,21 +241,51 @@ private fun Keypad(onDigit: (Char) -> Unit, onBackspace: () -> Unit) {
     }
 }
 
-private fun showBiometricPrompt(activity: FragmentActivity, onUnlocked: () -> Unit) {
-    val prompt = BiometricPrompt(
-        activity,
-        activity.mainExecutor,
-        object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                super.onAuthenticationSucceeded(result)
-                onUnlocked()
+/**
+ * 启动指纹验证（防御式：任何失败都会通过 onError 反馈到界面，不静默吞掉）。
+ */
+private fun showBiometricPrompt(
+    activity: FragmentActivity,
+    onError: (String) -> Unit,
+    onSuccess: () -> Unit
+) {
+    val executor = runCatching { activity.mainExecutor }
+        .getOrElse { ContextCompat.getMainExecutor(activity) }
+
+    val prompt = runCatching {
+        BiometricPrompt(
+            activity,
+            executor,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(
+                    result: BiometricPrompt.AuthenticationResult
+                ) {
+                    super.onAuthenticationSucceeded(result)
+                    onSuccess()
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    super.onAuthenticationError(errorCode, errString)
+                    onError("指纹验证失败：$errString（$errorCode）")
+                }
             }
-        }
-    )
-    val info = BiometricPrompt.PromptInfo.Builder()
-        .setTitle("解锁记账本")
-        .setNegativeButtonText("取消")
-        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
-        .build()
+        )
+    }.getOrElse {
+        onError("无法启动指纹验证：${it.message}")
+        return
+    }
+
+    val info = runCatching {
+        BiometricPrompt.PromptInfo.Builder()
+            .setTitle("解锁记账本")
+            .setNegativeButtonText("取消")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+            .build()
+    }.getOrElse {
+        onError("无法创建指纹请求：${it.message}")
+        return
+    }
+
     runCatching { prompt.authenticate(info) }
+        .onFailure { onError("指纹验证启动失败：${it.message}") }
 }

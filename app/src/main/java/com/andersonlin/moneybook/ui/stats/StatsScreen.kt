@@ -1,6 +1,7 @@
 package com.andersonlin.moneybook.ui.stats
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -66,7 +67,7 @@ fun StatsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // 图表类型：饼图 / 柱状 / 趋势
+            // 图表类型：分类占比 / 收支对比 / 趋势
             SingleChoiceSegmentedButtonRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -74,7 +75,7 @@ fun StatsScreen(
             ) {
                 listOf(
                     StatsViewModel.CHART_PIE to "分类占比",
-                    StatsViewModel.CHART_BAR to "月度对比",
+                    StatsViewModel.CHART_BAR to "收支对比",
                     StatsViewModel.CHART_LINE to "趋势"
                 ).forEachIndexed { index, (value, labelText) ->
                     SegmentedButton(
@@ -86,46 +87,46 @@ fun StatsScreen(
                 }
             }
 
-            // 类型：支出 / 收入 / 全部
-            SingleChoiceSegmentedButtonRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            ) {
-                listOf(
-                    StatsViewModel.TYPE_EXPENSE to "支出",
-                    StatsViewModel.TYPE_INCOME to "收入",
-                    StatsViewModel.TYPE_ALL to "全部"
-                ).forEachIndexed { index, (value, labelText) ->
-                    SegmentedButton(
-                        selected = state.type == value,
-                        onClick = { viewModel.setType(value) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
-                        label = { Text(labelText) }
-                    )
+            // 类型：仅饼图使用（柱状/趋势固定展示收支双系列）
+            if (state.chartType == StatsViewModel.CHART_PIE) {
+                SingleChoiceSegmentedButtonRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    listOf(
+                        StatsViewModel.TYPE_EXPENSE to "支出",
+                        StatsViewModel.TYPE_INCOME to "收入",
+                        StatsViewModel.TYPE_ALL to "全部"
+                    ).forEachIndexed { index, (value, labelText) ->
+                        SegmentedButton(
+                            selected = state.type == value,
+                            onClick = { viewModel.setType(value) },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
+                            label = { Text(labelText) }
+                        )
+                    }
                 }
             }
 
-            // 时间维度（仅饼图）
-            if (state.chartType == StatsViewModel.CHART_PIE) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = viewModel::prev) {
-                        Icon(Icons.Filled.ChevronLeft, contentDescription = "上一个")
-                    }
-                    Text(
-                        text = state.label,
-                        style = MaterialTheme.typography.titleSmall,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = viewModel::next, enabled = state.canGoNext) {
-                        Icon(Icons.Filled.ChevronRight, contentDescription = "下一个")
-                    }
+            // 时间维度：始终显示，对三种图表都生效
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = viewModel::prev) {
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = "上一个")
+                }
+                Text(
+                    text = state.label,
+                    style = MaterialTheme.typography.titleSmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = viewModel::next, enabled = state.canGoNext) {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "下一个")
                 }
             }
 
@@ -191,14 +192,14 @@ private fun ColumnScope.PieContent(state: StatsUiState) {
 
 @Composable
 private fun ColumnScope.BarContent(state: StatsUiState, expenseColor: Color, incomeColor: Color) {
-    if (!state.barHasData) {
-        EmptyBox("近 6 个月暂无收支记录")
+    if (!state.chartHasData) {
+        EmptyBox("该时间段暂无收支记录")
         return
     }
     LazyColumn(Modifier.fillMaxSize()) {
         item(key = "title") {
             Text(
-                text = "近 6 个月收支对比",
+                text = state.chartWindowLabel,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -207,7 +208,7 @@ private fun ColumnScope.BarContent(state: StatsUiState, expenseColor: Color, inc
         item(key = "chart") {
             Column {
                 BarChart(
-                    groups = state.barGroups,
+                    points = state.chartPoints,
                     expenseColor = expenseColor,
                     incomeColor = incomeColor,
                     modifier = Modifier.padding(vertical = 16.dp)
@@ -215,7 +216,7 @@ private fun ColumnScope.BarContent(state: StatsUiState, expenseColor: Color, inc
                 ChartLegend(expenseColor, incomeColor)
             }
         }
-        items(state.barGroups.reversed(), key = { "detail_" + it.label }) { group ->
+        items(state.chartPoints.reversed(), key = { "detail_" + it.label }) { point ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -223,18 +224,18 @@ private fun ColumnScope.BarContent(state: StatsUiState, expenseColor: Color, inc
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = group.label,
+                    text = point.label,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = "-" + formatCents(group.expense),
+                    text = "-" + formatCents(point.expense),
                     style = MaterialTheme.typography.bodyMedium,
                     color = expenseColor
                 )
                 Spacer(Modifier.width(16.dp))
                 Text(
-                    text = "+" + formatCents(group.income),
+                    text = "+" + formatCents(point.income),
                     style = MaterialTheme.typography.bodyMedium,
                     color = incomeColor
                 )
@@ -245,14 +246,14 @@ private fun ColumnScope.BarContent(state: StatsUiState, expenseColor: Color, inc
 
 @Composable
 private fun ColumnScope.LineContent(state: StatsUiState, expenseColor: Color, incomeColor: Color) {
-    if (!state.lineHasData) {
-        EmptyBox("近 12 个月暂无收支记录")
+    if (!state.chartHasData) {
+        EmptyBox("该时间段暂无收支记录")
         return
     }
     LazyColumn(Modifier.fillMaxSize()) {
         item(key = "title") {
             Text(
-                text = "近 12 个月消费趋势",
+                text = state.chartWindowLabel,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -261,7 +262,7 @@ private fun ColumnScope.LineContent(state: StatsUiState, expenseColor: Color, in
         item(key = "chart") {
             Column {
                 LineChart(
-                    points = state.linePoints,
+                    points = state.chartPoints,
                     expenseColor = expenseColor,
                     incomeColor = incomeColor,
                     modifier = Modifier.padding(vertical = 16.dp)
@@ -279,7 +280,7 @@ private fun ChartLegend(expenseColor: Color, incomeColor: Color) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(

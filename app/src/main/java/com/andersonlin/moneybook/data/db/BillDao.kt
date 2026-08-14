@@ -62,6 +62,17 @@ interface BillDao {
     )
     fun getMonthlyTotals(startDay: Long, endDay: Long): Flow<List<MonthlyTotal>>
 
+    /** 逐日收支合计（柱状/趋势图用），day 格式 "yyyy-MM-dd" */
+    data class DailyTotal(val day: String, val type: Int, val total: Long)
+
+    @Query(
+        "SELECT strftime('%Y-%m-%d', dateEpochDay * 86400, 'unixepoch') AS day, type, " +
+            "SUM(amountCents) AS total FROM bills " +
+            "WHERE dateEpochDay BETWEEN :startDay AND :endDay " +
+            "GROUP BY day, type ORDER BY day"
+    )
+    fun getDailyTotals(startDay: Long, endDay: Long): Flow<List<DailyTotal>>
+
     /** 某天的收支合计 */
     @Query(
         "SELECT type, SUM(amountCents) AS total FROM bills " +

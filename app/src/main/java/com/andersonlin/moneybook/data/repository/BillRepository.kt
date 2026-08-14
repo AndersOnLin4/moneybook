@@ -20,6 +20,9 @@ class BillRepository(private val dao: BillDao) {
     fun getMonthlyTotals(startDay: Long, endDay: Long) =
         dao.getMonthlyTotals(startDay, endDay)
 
+    fun getDailyTotals(startDay: Long, endDay: Long) =
+        dao.getDailyTotals(startDay, endDay)
+
     fun getDaySummary(day: Long) = dao.getDaySummary(day)
 
     fun searchBills(typeFilter: Int, keyword: String, minCents: Long? = null, maxCents: Long? = null) =

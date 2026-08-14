@@ -36,15 +36,8 @@ data class StatsRange(
     val endDay: Long
 )
 
-/** 柱状图一组（某月收支） */
-data class BarGroup(
-    val label: String,
-    val expense: Long,
-    val income: Long
-)
-
-/** 折线图一点（某月收支） */
-data class LinePoint(
+/** 柱状/折线共用的一组数据点 */
+data class ChartPoint(
     val label: String,
     val expense: Long,
     val income: Long
@@ -58,10 +51,9 @@ data class StatsUiState(
     val slices: List<StatSlice> = emptyList(),
     val total: Long = 0L,
     val canGoNext: Boolean = false,
-    val barGroups: List<BarGroup> = emptyList(),
-    val linePoints: List<LinePoint> = emptyList(),
-    val barHasData: Boolean = false,
-    val lineHasData: Boolean = false
+    val chartPoints: List<ChartPoint> = emptyList(),
+    val chartWindowLabel: String = "",
+    val chartHasData: Boolean = false
 ) {
     val typeLabel: String
         get() = when (type) {
@@ -72,8 +64,10 @@ data class StatsUiState(
 }
 
 /**
- * 统计页：饼图（分类占比，支持支出/收入/全部三态）+ 近 6 月收支柱状对比 + 近 12 月消费趋势折线。
- * 饼图支持 日 / 周 / 月 / 年 维度切换；柱状与折线按自然月聚合（Canvas 自绘，无第三方图表库）。
+ * 统计页：分类占比饼图（支出/收入/全部三态）+ 收支对比图。
+ * 日/周/月/年维度始终生效：
+ * - 饼图：区间内分类占比
+ * - 柱状/趋势：同一窗口数据 —— 年 = 该年 12 个月，月 = 该月每日，周 = 该周 7 日，日 = 近 7 天
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class StatsViewModel(
@@ -102,20 +96,20 @@ class StatsViewModel(
     private val chartType = MutableStateFlow(CHART_PIE)
 
     val uiState: StateFlow<StatsUiState> = combine(
-        combine(scale, anchor, type, chartType) { s, a, t, c ->
-            StatsQuery(s, a, t, c)
-        }.flatMapLatest { q ->
-            val range = rangeFor(q.scale, q.anchor)
-            // 柱状/折线数据窗口：以锚点所在月为终点往前推 12 个月
-            val endMonth = YearMonth.from(q.anchor)
-            val startMonth = endMonth.minusMonths(11)
-            combine(
-                billRepository.getCategoryStats(q.type, range.startDay, range.endDay)
-                    .map { Triple(range, q, it) },
-                billRepository.getMonthlyTotals(startMonth.startEpochDay(), endMonth.endEpochDay())
-                    .map { it }
-            ) { pie, monthly -> QueryResult(range, q, pie.third, monthly) }
-        },
+        combine(scale, anchor, type, chartType) { s, a, t, c -> StatsQuery(s, a, t, c) }
+            .flatMapLatest { q ->
+                val range = rangeFor(q.scale, q.anchor)
+                // 图表窗口（柱状/趋势共用）：年维度用逐月聚合，其余用逐日聚合
+                val year = q.anchor.year
+                combine(
+                    billRepository.getCategoryStats(q.type, range.startDay, range.endDay),
+                    billRepository.getMonthlyTotals(
+                        LocalDate.of(year, 1, 1).toEpochDay(),
+                        LocalDate.of(year, 12, 31).toEpochDay()
+                    ),
+                    billRepository.getDailyTotals(dailyStart(q), dailyEnd(q))
+                ) { pie, monthly, daily -> QueryResult(range, q, pie, monthly, daily) }
+            },
         categoryRepository.getAllCategories()
     ) { result, categories ->
         val categoryMap = categories.associateBy { it.id }
@@ -123,18 +117,7 @@ class StatsViewModel(
             .mapNotNull { sum -> categoryMap[sum.categoryId]?.let { StatSlice(it, sum.total) } }
             .sortedByDescending { it.total }
 
-        val monthlyMap = result.monthly.groupBy { it.ym }
-        val endMonth = YearMonth.from(anchor.value)
-        val startMonth = endMonth.minusMonths(11)
-        val months = (0..11).map { startMonth.plusMonths(it.toLong()) }
-        val points = months.map { ym ->
-            val rows = monthlyMap[ymKey(ym)] ?: emptyList()
-            LinePoint(
-                label = "${ym.monthValue}月",
-                expense = rows.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L,
-                income = rows.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L
-            )
-        }
+        val points = buildChartPoints(result)
 
         val today = LocalDate.now()
         val canGoNext = when (scale.value) {
@@ -155,10 +138,9 @@ class StatsViewModel(
             slices = slices,
             total = slices.sumOf { it.total },
             canGoNext = canGoNext,
-            barGroups = points.takeLast(6).map { BarGroup(it.label, it.expense, it.income) },
-            linePoints = points,
-            barHasData = points.takeLast(6).any { it.expense > 0 || it.income > 0 },
-            lineHasData = points.any { it.expense > 0 || it.income > 0 }
+            chartPoints = points,
+            chartWindowLabel = chartWindowLabel(result.query),
+            chartHasData = points.any { it.expense > 0 || it.income > 0 }
         )
     }.stateIn(
         scope = viewModelScope,
@@ -194,6 +176,78 @@ class StatsViewModel(
             else -> a
         }
     }
+
+    // ---- 图表窗口 ----
+
+    private fun dailyStart(q: StatsQuery): Long = when (q.scale) {
+        SCALE_DAY -> q.anchor.minusDays(6).toEpochDay()
+        SCALE_WEEK -> q.anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toEpochDay()
+        SCALE_MONTH -> YearMonth.from(q.anchor).startEpochDay()
+        else -> q.anchor.toEpochDay() // 年维度不使用 daily 数据
+    }
+
+    private fun dailyEnd(q: StatsQuery): Long = when (q.scale) {
+        SCALE_DAY -> q.anchor.toEpochDay()
+        SCALE_WEEK -> q.anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            .plusDays(6).toEpochDay()
+        SCALE_MONTH -> YearMonth.from(q.anchor).endEpochDay()
+        else -> q.anchor.toEpochDay()
+    }
+
+    /** 生成柱状/趋势共用的数据点（缺日/缺月补 0） */
+    private fun buildChartPoints(result: QueryResult): List<ChartPoint> {
+        val q = result.query
+        return when (q.scale) {
+            SCALE_YEAR -> {
+                val monthlyMap = result.monthly.groupBy { it.ym }
+                (1..12).map { m ->
+                    val rows = monthlyMap[ymKey(q.anchor.year, m)] ?: emptyList()
+                    ChartPoint(
+                        label = "${m}月",
+                        expense = rows.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L,
+                        income = rows.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L
+                    )
+                }
+            }
+            SCALE_MONTH -> {
+                val dailyMap = result.daily.groupBy { it.day }
+                val ym = YearMonth.from(q.anchor)
+                (1..ym.lengthOfMonth()).map { d ->
+                    val rows = dailyMap[dayKey(ym.year, ym.monthValue, d)] ?: emptyList()
+                    ChartPoint(
+                        label = "${d}日",
+                        expense = rows.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L,
+                        income = rows.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L
+                    )
+                }
+            }
+            else -> {
+                val dailyMap = result.daily.groupBy { it.day }
+                val start = LocalDate.ofEpochDay(dailyStart(q))
+                val days = (dailyEnd(q) - dailyStart(q)).toInt()
+                (0..days).map { offset ->
+                    val date = start.plusDays(offset.toLong())
+                    val rows = dailyMap[dayKey(date.year, date.monthValue, date.dayOfMonth)] ?: emptyList()
+                    ChartPoint(
+                        label = "${date.monthValue}/${date.dayOfMonth}",
+                        expense = rows.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L,
+                        income = rows.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L
+                    )
+                }
+            }
+        }
+    }
+
+    private fun chartWindowLabel(q: StatsQuery): String = when (q.scale) {
+        SCALE_YEAR -> "${q.anchor.year}年 · 月度对比"
+        SCALE_MONTH -> monthLabel(YearMonth.from(q.anchor)) + " · 每日对比"
+        SCALE_WEEK -> {
+            val monday = q.anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            val sunday = monday.plusDays(6)
+            "${monday.monthValue}/${monday.dayOfMonth}-${sunday.monthValue}/${sunday.dayOfMonth} · 每日对比"
+        }
+        else -> "近 7 天 · 每日对比"
+    }
 }
 
 private data class StatsQuery(
@@ -207,13 +261,16 @@ private data class QueryResult(
     val range: StatsRange,
     val query: StatsQuery,
     val sums: List<com.andersonlin.moneybook.data.db.BillDao.CategorySum>,
-    val monthly: List<com.andersonlin.moneybook.data.db.BillDao.MonthlyTotal>
+    val monthly: List<com.andersonlin.moneybook.data.db.BillDao.MonthlyTotal>,
+    val daily: List<com.andersonlin.moneybook.data.db.BillDao.DailyTotal>
 )
 
-private fun ymKey(ym: YearMonth): String =
-    "%04d-%02d".format(ym.year, ym.monthValue)
+private fun ymKey(year: Int, month: Int): String = "%04d-%02d".format(year, month)
 
-/** 根据维度与锚点日期计算统计区间（闭区间 epochDay） */
+private fun dayKey(year: Int, month: Int, day: Int): String =
+    "%04d-%02d-%02d".format(year, month, day)
+
+/** 根据维度与锚点日期计算饼图统计区间（闭区间 epochDay） */
 private fun rangeFor(scale: Int, anchor: LocalDate): StatsRange = when (scale) {
     StatsViewModel.SCALE_DAY -> StatsRange(
         label = fullDateLabel(anchor.toEpochDay()),

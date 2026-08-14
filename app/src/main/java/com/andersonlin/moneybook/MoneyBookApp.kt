@@ -10,6 +10,7 @@ import com.andersonlin.moneybook.data.repository.CategoryRepository
 import com.andersonlin.moneybook.data.repository.RecurringRepository
 import com.andersonlin.moneybook.data.settings.LockSettingsRepository
 import com.andersonlin.moneybook.data.settings.SettingsRepository
+import com.andersonlin.moneybook.widget.MoneyBookWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,6 +38,13 @@ class MoneyBookApp : Application() {
         // 启动时补记到期的周期账单（失败不影响使用）
         applicationScope.launch {
             runCatching { recurringRepository.generateDue() }
+        }
+    }
+
+    /** 请求刷新桌面小组件（记账保存后、回到前台时调用） */
+    fun requestWidgetUpdate() {
+        applicationScope.launch {
+            runCatching { MoneyBookWidget.updateAllWidgets(this@MoneyBookApp) }
         }
     }
 }

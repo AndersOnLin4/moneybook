@@ -17,6 +17,7 @@ import androidx.glance.GlanceTheme
 import androidx.glance.action.actionParametersOf
 import androidx.glance.appwidget.AppWidgetId
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -113,6 +114,20 @@ private fun WidgetContent(
                     style = TextStyle(
                         fontSize = 12.sp,
                         color = GlanceTheme.colors.onSurface
+                    )
+                )
+                Spacer(GlanceModifier.width(10.dp))
+                Button(
+                    text = "↻",
+                    onClick = actionRunCallback<WidgetRefreshCallback>(actionParametersOf()),
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = GlanceTheme.colors.primary
+                    ),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = ColorProvider(Color(0x14000000)),
+                        contentColor = GlanceTheme.colors.primary
                     )
                 )
             }
