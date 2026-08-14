@@ -85,9 +85,14 @@ fun AboutScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(24.dp))
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    AboutLine("• 本地记账：收入支出、分类、备注、日期")
-                    AboutLine("• 月度统计：分类占比饼图，可切换月份")
-                    AboutLine("• 数据备份：JSON 导出 / 导入恢复")
+                    AboutLine("• 本地记账：收入支出、分类、账户、备注、日期")
+                    AboutLine("• 多账户：现金 / 微信 / 支付宝 / 银行卡")
+                    AboutLine("• 月度预算：进度条与超支提醒")
+                    AboutLine("• 周期账单：每周 / 每月 / 每年自动记账")
+                    AboutLine("• 统计：日 / 周 / 月 / 年分类占比饼图")
+                    AboutLine("• 数据：JSON 备份、CSV 导出（Excel 可打开）")
+                    AboutLine("• 安全：应用锁（密码 / 指纹）")
+                    AboutLine("• 桌面小组件：本月结余与快捷记账")
                     AboutLine("• 深色 / 浅色主题切换")
                     AboutLine("• 所有数据仅保存在本机，不申请网络权限")
                 }

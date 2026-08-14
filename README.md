@@ -7,12 +7,18 @@
 
 | 模块 | 说明 |
 | --- | --- |
-| 记一笔 | 支出/收入切换、金额（分存储，无浮点误差）、分类、备注、日期（可补记）；新增 / 编辑 / 删除账单 |
+| 记一笔 | 支出/收入切换、金额（分存储，无浮点误差）、分类、账户、备注、日期（可补记）；新增 / 编辑 / 删除账单 |
+| 多账户 | 内置账户（现金/微信/支付宝/银行卡），支持自定义增删；删除账户自动转移账单 |
 | 分类管理 | 内置默认分类（支出：餐饮、交通、购物、住宿、娱乐、医疗；收入：工资、红包、兼职），支持自定义增删（emoji 图标，删除有账单的分类会二次确认并连带删除账单，默认分类不可删除） |
-| 首页 | 当月总收入 / 总支出 / 结余 + 最近 10 条账单预览 + 悬浮记账按钮 |
+| 首页 | 当月总收入 / 总支出 / 结余 + 月度预算进度条与超支提醒 + 最近 10 条账单预览 + 悬浮记账按钮 |
 | 账单列表 | 时间倒序、按月分组（组头显示当月收支合计）、搜索（备注/分类名）+ 类型筛选 |
-| 统计页 | 月度分类占比环形饼图（Canvas 自绘，无第三方图表库）、可切换月份、支出/收入切换 |
-| 设置页 | 深色/浅色/跟随系统切换（DataStore 持久化）、JSON 备份导出、导入恢复（覆盖式，二次确认）、分类管理入口、关于页面 |
+| 统计页 | 分类占比环形饼图（Canvas 自绘，无第三方图表库），支持 日 / 周 / 月 / 年 四种时间维度 + 支出/收入切换 |
+| 周期账单 | 每周 / 每月 / 每年自动记账（App 启动时补记到期账单），支持增删改与启用停用 |
+| 预算 | 按「年-月」设置月度支出预算，首页显示进度与剩余/超支金额 |
+| 导出 | JSON 全量备份导出/导入恢复（覆盖式，二次确认）+ 账单导出 CSV（UTF-8 BOM，Excel 直接打开） |
+| 应用锁 | 4-6 位数字密码（盐 + SHA-256 哈希存储）+ 指纹解锁，回前台自动锁定 |
+| 桌面小组件 | Glance 小组件：显示本月结余 / 收支，一键快捷记账，打开 App 自动刷新 |
+| 设置页 | 深色/浅色/跟随系统切换（DataStore 持久化）、分类/账户/预算/周期账单/应用锁管理入口、关于页面 |
 
 ## 关键约束（已满足）
 
@@ -75,24 +81,31 @@ G:\Andersonlin4-design 记账工具\
       │  └─ mipmap-anydpi-v26\ic_launcher.xml / ic_launcher_round.xml
       └─ java\com\andersonlin\moneybook\
          ├─ MoneyBookApp.kt                     （Application 容器）
-         ├─ MainActivity.kt                     （入口 Activity）
+         ├─ MainActivity.kt                     （入口 Activity + 应用锁门禁 + 小组件跳转）
          ├─ data\
-         │  ├─ model\Bill.kt / Category.kt / DefaultCategories.kt
-         │  ├─ db\BillDao.kt / CategoryDao.kt / AppDatabase.kt
-         │  ├─ repository\BillRepository.kt / CategoryRepository.kt
-         │  ├─ settings\SettingsRepository.kt   （DataStore 主题模式）
-         │  └─ backup\BackupManager.kt          （JSON 导出/导入）
+         │  ├─ model\Bill.kt / Category.kt / Account.kt / Budget.kt / RecurringBill.kt
+          │  ├─ model\DefaultCategories.kt / DefaultAccounts.kt
+         │  ├─ db\BillDao.kt / CategoryDao.kt / AccountDao.kt / BudgetDao.kt / RecurringBillDao.kt / AppDatabase.kt
+         │  ├─ repository\BillRepository.kt / CategoryRepository.kt / AccountRepository.kt
+          │  ├─ repository\BudgetRepository.kt / RecurringRepository.kt
+         │  ├─ settings\SettingsRepository.kt / LockSettingsRepository.kt
+         │  └─ backup\BackupManager.kt          （JSON 备份 + CSV 导出）
          ├─ util\Format.kt                      （金额、日期工具）
+          ├─ widget\MoneyBookWidget.kt / MoneyBookWidgetReceiver.kt
          └─ ui\
             ├─ AppViewModelProvider.kt          （ViewModel 工厂）
             ├─ theme\Theme.kt
             ├─ navigation\AppNavHost.kt         （路由 + 底部导航）
-            ├─ components\Common.kt             （账单行、分类图标、空状态）
+            ├─ components\Common.kt / EmojiChoices.kt
             ├─ home\HomeViewModel.kt / HomeScreen.kt
             ├─ bill\BillListViewModel.kt / BillListScreen.kt
             ├─ bill\AddEditBillViewModel.kt / AddEditBillScreen.kt
             ├─ stats\StatsViewModel.kt / StatsScreen.kt / PieChart.kt
             ├─ category\CategoryViewModel.kt / CategoryScreen.kt
+            ├─ account\AccountViewModel.kt / AccountScreen.kt
+            ├─ budget\BudgetViewModel.kt / BudgetScreen.kt
+            ├─ recurring\RecurringViewModel.kt / RecurringScreen.kt
+            ├─ lock\LockViewModel.kt / LockScreen.kt / LockSettingsScreen.kt
             └─ settings\SettingsViewModel.kt / SettingsScreen.kt / AboutScreen.kt
 ```
 
