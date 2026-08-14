@@ -20,12 +20,16 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -33,9 +37,9 @@ import javax.crypto.spec.SecretKeySpec
 /**
  * 备份管理：
  * - 明文 JSON 导出/导入（保留兼容旧版备份）
- * - 加密备份：JSON → GZIP 压缩 → AES-256-GCM 加密（系统内置库，零第三方依赖），
- *   文件扩展名 .mbk，密钥由应用锁 PIN 派生（未设锁时用内置密钥）。
- * - 导入自动识别：.mbk 加密包自动解密，旧 .json 明文直接读取。
+ * - 加密备份 v2（.mbk）：ZIP 容器（backup.json + attachments/<账单id>.<扩展名> 附件原文件）
+ *   → GZIP 压缩 → AES-256-GCM 加密（系统内置库，零第三方依赖），密钥由应用锁 PIN 派生（未设锁时用内置密钥）。
+ * - 导入自动识别：.mbk v2（含附件打包）/ v1（旧加密）/ 旧 .json 明文。
  * 通过系统文件选择器（SAF）读写 Uri，无需任何权限。
  */
 class BackupManager(
@@ -45,8 +49,11 @@ class BackupManager(
 ) {
 
     companion object {
-        /** 加密备份文件头标识 */
-        private val MAGIC = byteArrayOf('M'.code.toByte(), 'B'.code.toByte(), 'K'.code.toByte(), '1'.code.toByte())
+        /** 加密备份文件头标识：v2（ZIP 容器，含附件） */
+        private val MAGIC_V2 = byteArrayOf('M'.code.toByte(), 'B'.code.toByte(), 'K'.code.toByte(), '2'.code.toByte())
+
+        /** 旧版加密备份文件头（v1，无附件打包） */
+        private val MAGIC_V1 = byteArrayOf('M'.code.toByte(), 'B'.code.toByte(), 'K'.code.toByte(), '1'.code.toByte())
 
         /** 未设置应用锁时的内置派生密钥盐 */
         private const val DEFAULT_KEY_SALT = "moneybook-default-key-v1"
@@ -137,19 +144,108 @@ class BackupManager(
     }
 
     /**
-     * 导出加密备份（.mbk）：JSON → GZIP → AES-256-GCM。
+     * 导出加密备份 v2（.mbk）：ZIP 容器（backup.json + 附件原文件）→ GZIP → AES-256-GCM。
      * 密钥由应用锁 PIN 派生；未设置应用锁时使用内置密钥。
      */
     suspend fun exportEncryptedTo(uri: Uri): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
             val (text, count) = buildBackupJson()
-            val compressed = gzip(text.toByteArray(Charsets.UTF_8))
+            val attachments = collectAttachments()
+            val zipBytes = buildZipContainer(text, attachments)
+            val compressed = gzip(zipBytes)
             val encrypted = encryptAesGcm(compressed, deriveKey())
             val output = context.contentResolver.openOutputStream(uri)
                 ?: error("无法打开输出流")
-            output.use { it.write(MAGIC + encrypted) }
+            output.use { it.write(MAGIC_V2 + encrypted) }
             count
         }
+    }
+
+    private data class AttachmentPayload(
+        val billId: Long,
+        val ext: String,
+        val data: ByteArray
+    )
+
+    /** 读取全部账单附件内容（读取失败或为空的附件跳过） */
+    private suspend fun collectAttachments(): List<AttachmentPayload> {
+        val bills = database.billDao().getAllSnapshot()
+        return bills.mapNotNull { b ->
+            val uriString = b.attachmentUri ?: return@mapNotNull null
+            runCatching {
+                val data = context.contentResolver
+                    .openInputStream(Uri.parse(uriString))?.use { it.readBytes() }
+                if (data != null && data.isNotEmpty()) {
+                    AttachmentPayload(b.id, safeExtension(uriString, b.attachmentMime), data)
+                } else {
+                    null
+                }
+            }.getOrNull()
+        }
+    }
+
+    private fun buildZipContainer(json: String, attachments: List<AttachmentPayload>): ByteArray {
+        val bos = ByteArrayOutputStream()
+        ZipOutputStream(bos).use { zip ->
+            zip.putNextEntry(ZipEntry("backup.json"))
+            zip.write(json.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+            attachments.forEach { a ->
+                zip.putNextEntry(ZipEntry("attachments/${a.billId}${a.ext}"))
+                zip.write(a.data)
+                zip.closeEntry()
+            }
+        }
+        return bos.toByteArray()
+    }
+
+    private fun readZipContainer(zipBytes: ByteArray): Pair<String, List<AttachmentPayload>> {
+        var json: String? = null
+        val attachments = mutableListOf<AttachmentPayload>()
+        ZipInputStream(ByteArrayInputStream(zipBytes)).use { zis ->
+            while (true) {
+                val entry = zis.nextEntry ?: break
+                val data = zis.readBytes()
+                when {
+                    entry.name == "backup.json" -> json = data.toString(Charsets.UTF_8)
+                    entry.name.startsWith("attachments/") -> {
+                        val fileName = entry.name.removePrefix("attachments/")
+                        val id = fileName.substringBefore('.').toLongOrNull()
+                        val ext = fileName.substringAfter('.', "")
+                            .let { if (it.isEmpty()) ".bin" else ".$it" }
+                        if (id != null) attachments.add(AttachmentPayload(id, ext, data))
+                    }
+                }
+                zis.closeEntry()
+            }
+        }
+        return (json ?: error("备份文件损坏：缺少 backup.json")) to attachments
+    }
+
+    private fun safeExtension(uri: String?, mime: String?): String {
+        val fromName = uri?.substringAfterLast('/', "")
+            ?.substringAfterLast('.', "")
+            ?.takeIf { it.length in 1..6 && it.all { c -> c.isLetterOrDigit() } }
+        val fromMime = when (mime) {
+            "image/jpeg" -> "jpg"
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            "image/gif" -> "gif"
+            "application/pdf" -> "pdf"
+            "text/plain" -> "txt"
+            else -> null
+        }
+        return "." + (fromName ?: fromMime ?: "bin")
+    }
+
+    private fun mimeFromExt(ext: String): String = when (ext.lowercase()) {
+        ".jpg", ".jpeg" -> "image/jpeg"
+        ".png" -> "image/png"
+        ".webp" -> "image/webp"
+        ".gif" -> "image/gif"
+        ".pdf" -> "application/pdf"
+        ".txt" -> "text/plain"
+        else -> "application/octet-stream"
     }
 
     /** 密钥派生：SHA-256(PIN + 固定盐)；无锁 PIN 时用内置盐 */
@@ -188,79 +284,108 @@ class BackupManager(
     private fun gunzip(data: ByteArray): ByteArray =
         GZIPInputStream(ByteArrayInputStream(data)).use { it.readBytes() }
 
-    /** 从指定 Uri 读取备份并覆盖恢复（自动识别 .mbk 加密包与旧 .json），返回恢复的账单条数 */
+    /**
+     * 从指定 Uri 读取备份并覆盖恢复，返回恢复的账单条数。
+     * 自动识别：.mbk v2（ZIP 容器含附件）/ .mbk v1（旧加密 JSON）/ 旧 .json 明文。
+     */
     suspend fun importFrom(uri: Uri): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
             val input = context.contentResolver.openInputStream(uri)
                 ?: error("无法打开文件")
             val bytes = input.use { it.readBytes() }
 
-            val text = if (bytes.size > MAGIC.size && bytes.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) {
-                // .mbk 加密备份：解密 + 解压
-                val payload = bytes.copyOfRange(MAGIC.size, bytes.size)
-                val plain = try {
-                    decryptAesGcm(payload, deriveKey())
-                } catch (e: Exception) {
-                    error("备份解密失败：应用锁密码不匹配或文件已损坏")
+            fun decryptPayload(payload: ByteArray): ByteArray = try {
+                decryptAesGcm(payload, deriveKey())
+            } catch (e: Exception) {
+                error("备份解密失败：应用锁密码不匹配或文件已损坏")
+            }
+
+            val restored: List<Bill>
+            if (bytes.size > MAGIC_V2.size &&
+                bytes.copyOfRange(0, MAGIC_V2.size).contentEquals(MAGIC_V2)
+            ) {
+                // v2：ZIP 容器（JSON + 附件）
+                val zipBytes = gunzip(decryptPayload(bytes.copyOfRange(MAGIC_V2.size, bytes.size)))
+                val (text, attachments) = readZipContainer(zipBytes)
+                restored = restoreFromJson(text)
+                val dir = File(context.filesDir, "attachments").apply { mkdirs() }
+                attachments.forEach { a ->
+                    val file = File(dir, "${a.billId}${a.ext}")
+                    file.writeBytes(a.data)
+                    database.billDao().updateAttachment(
+                        a.billId,
+                        file.toURI().toString(),
+                        mimeFromExt(a.ext)
+                    )
                 }
-                gunzip(plain).toString(Charsets.UTF_8)
+            } else if (bytes.size > MAGIC_V1.size &&
+                bytes.copyOfRange(0, MAGIC_V1.size).contentEquals(MAGIC_V1)
+            ) {
+                // v1：旧加密 JSON（无附件打包）
+                val text = gunzip(decryptPayload(bytes.copyOfRange(MAGIC_V1.size, bytes.size)))
+                    .toString(Charsets.UTF_8)
+                restored = restoreFromJson(text)
             } else {
                 // 旧版明文 JSON
-                bytes.toString(Charsets.UTF_8)
+                restored = restoreFromJson(bytes.toString(Charsets.UTF_8))
             }
-
-            val root = JSONObject(text)
-            if (root.optString("app") != "moneybook" && !root.has("bills")) {
-                error("不是有效的记账本备份文件")
-            }
-
-            val categories = parseCategories(root.getJSONArray("categories"))
-            val accounts = parseAccounts(root.getJSONArray("accounts"))
-            // 旧备份无 ledgers：补默认账本
-            val ledgers = if (root.has("ledgers")) {
-                parseLedgers(root.getJSONArray("ledgers"))
-            } else {
-                listOf(DefaultLedgers.DEFAULT.copy(id = Bill.DEFAULT_LEDGER_ID))
-            }
-            val bills = parseBills(root.getJSONArray("bills"))
-            val recurring = if (root.has("recurring")) {
-                parseRecurring(root.getJSONArray("recurring"))
-            } else {
-                emptyList()
-            }
-            val goals = if (root.has("goals")) parseGoals(root.getJSONArray("goals")) else emptyList()
-
-            require(categories.isNotEmpty() && categories.all { it.id > 0L }) { "备份文件损坏：分类数据无效" }
-            require(accounts.isNotEmpty() && accounts.all { it.id > 0L }) { "备份文件损坏：账户数据无效" }
-            require(ledgers.isNotEmpty() && ledgers.all { it.id > 0L }) { "备份文件损坏：账本数据无效" }
-            require(bills.all { it.id > 0L && it.amountCents > 0L }) { "备份文件损坏：账单数据无效" }
-            val categoryIds = categories.map { it.id }.toSet()
-            val accountIds = accounts.map { it.id }.toSet()
-            val ledgerIds = ledgers.map { it.id }.toSet()
-            require(bills.all { it.categoryId in categoryIds }) { "备份文件损坏：账单引用了不存在的分类" }
-            require(bills.all { it.accountId in accountIds }) { "备份文件损坏：账单引用了不存在的账户" }
-            require(bills.all { it.ledgerId in ledgerIds }) { "备份文件损坏：账单引用了不存在的账本" }
-            require(recurring.all { it.categoryId in categoryIds && it.accountId in accountIds && it.ledgerId in ledgerIds }) {
-                "备份文件损坏：周期账单引用无效"
-            }
-
-            database.withTransaction {
-                database.billDao().deleteAll()
-                database.recurringBillDao().deleteAll()
-                database.goalDao().deleteAll()
-                database.categoryDao().deleteAll()
-                database.accountDao().deleteAll()
-                database.ledgerDao().deleteAll()
-
-                database.ledgerDao().insertAll(ledgers)
-                database.categoryDao().insertAll(categories)
-                database.accountDao().insertAll(accounts)
-                database.billDao().insertAll(bills)
-                database.recurringBillDao().insertAll(recurring)
-                database.goalDao().insertAll(goals)
-            }
-            bills.size
+            restored.size
         }
+    }
+
+    /** 解析 JSON 并在事务内整体覆盖恢复，返回恢复的账单列表 */
+    private suspend fun restoreFromJson(text: String): List<Bill> {
+        val root = JSONObject(text)
+        if (root.optString("app") != "moneybook" && !root.has("bills")) {
+            error("不是有效的记账本备份文件")
+        }
+
+        val categories = parseCategories(root.getJSONArray("categories"))
+        val accounts = parseAccounts(root.getJSONArray("accounts"))
+        // 旧备份无 ledgers：补默认账本
+        val ledgers = if (root.has("ledgers")) {
+            parseLedgers(root.getJSONArray("ledgers"))
+        } else {
+            listOf(DefaultLedgers.DEFAULT.copy(id = Bill.DEFAULT_LEDGER_ID))
+        }
+        val bills = parseBills(root.getJSONArray("bills"))
+        val recurring = if (root.has("recurring")) {
+            parseRecurring(root.getJSONArray("recurring"))
+        } else {
+            emptyList()
+        }
+        val goals = if (root.has("goals")) parseGoals(root.getJSONArray("goals")) else emptyList()
+
+        require(categories.isNotEmpty() && categories.all { it.id > 0L }) { "备份文件损坏：分类数据无效" }
+        require(accounts.isNotEmpty() && accounts.all { it.id > 0L }) { "备份文件损坏：账户数据无效" }
+        require(ledgers.isNotEmpty() && ledgers.all { it.id > 0L }) { "备份文件损坏：账本数据无效" }
+        require(bills.all { it.id > 0L && it.amountCents > 0L }) { "备份文件损坏：账单数据无效" }
+        val categoryIds = categories.map { it.id }.toSet()
+        val accountIds = accounts.map { it.id }.toSet()
+        val ledgerIds = ledgers.map { it.id }.toSet()
+        require(bills.all { it.categoryId in categoryIds }) { "备份文件损坏：账单引用了不存在的分类" }
+        require(bills.all { it.accountId in accountIds }) { "备份文件损坏：账单引用了不存在的账户" }
+        require(bills.all { it.ledgerId in ledgerIds }) { "备份文件损坏：账单引用了不存在的账本" }
+        require(recurring.all { it.categoryId in categoryIds && it.accountId in accountIds && it.ledgerId in ledgerIds }) {
+            "备份文件损坏：周期账单引用无效"
+        }
+
+        database.withTransaction {
+            database.billDao().deleteAll()
+            database.recurringBillDao().deleteAll()
+            database.goalDao().deleteAll()
+            database.categoryDao().deleteAll()
+            database.accountDao().deleteAll()
+            database.ledgerDao().deleteAll()
+
+            database.ledgerDao().insertAll(ledgers)
+            database.categoryDao().insertAll(categories)
+            database.accountDao().insertAll(accounts)
+            database.billDao().insertAll(bills)
+            database.recurringBillDao().insertAll(recurring)
+            database.goalDao().insertAll(goals)
+        }
+        return bills
     }
 
     /** 导出指定账本的账单为 CSV（带 UTF-8 BOM，Excel 可直接打开），返回账单条数 */

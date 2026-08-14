@@ -116,6 +116,10 @@ interface BillDao {
     @Query("SELECT COUNT(*) FROM bills WHERE categoryId = :categoryId")
     suspend fun countByCategory(categoryId: Long): Int
 
+    /** 恢复备份时更新附件地址（指向应用私有目录） */
+    @Query("UPDATE bills SET attachmentUri = :uri, attachmentMime = :mime WHERE id = :id")
+    suspend fun updateAttachment(id: Long, uri: String?, mime: String?)
+
     @Query("DELETE FROM bills WHERE categoryId = :categoryId")
     suspend fun deleteByCategory(categoryId: Long)
 
