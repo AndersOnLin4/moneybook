@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Upload
@@ -60,6 +61,7 @@ fun SettingsScreen(
     onManageCategories: () -> Unit,
     onManageAccounts: () -> Unit,
     onManageBudget: () -> Unit,
+    onManageRecurring: () -> Unit,
     onAbout: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
@@ -138,6 +140,8 @@ fun SettingsScreen(
                     SettingsRow(Icons.Filled.AccountBalanceWallet, "账户管理", onManageAccounts)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.Savings, "月度预算", onManageBudget)
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    SettingsRow(Icons.Filled.EventRepeat, "周期账单", onManageRecurring)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(
                         Icons.Filled.Upload,
