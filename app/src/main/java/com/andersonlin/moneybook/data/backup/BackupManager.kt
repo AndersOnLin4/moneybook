@@ -293,9 +293,10 @@ class BackupManager(
             val input = context.contentResolver.openInputStream(uri)
                 ?: error("无法打开文件")
             val bytes = input.use { it.readBytes() }
+            val key = deriveKey()
 
             fun decryptPayload(payload: ByteArray): ByteArray = try {
-                decryptAesGcm(payload, deriveKey())
+                decryptAesGcm(payload, key)
             } catch (e: Exception) {
                 error("备份解密失败：应用锁密码不匹配或文件已损坏")
             }
