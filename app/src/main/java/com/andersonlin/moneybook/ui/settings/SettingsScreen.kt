@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Upload
@@ -75,6 +76,7 @@ fun SettingsScreen(
     onManageCategories: () -> Unit,
     onManageAccounts: () -> Unit,
     onManageBudget: () -> Unit,
+    onManageCategoryBudget: () -> Unit,
     onManageRecurring: () -> Unit,
     onManageLedgers: () -> Unit,
     onManageGoals: () -> Unit,
@@ -149,6 +151,8 @@ fun SettingsScreen(
                     SettingsRow(Icons.Filled.AccountBalanceWallet, "账户管理", onManageAccounts)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.Savings, "月度预算", onManageBudget)
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    SettingsRow(Icons.Filled.PieChart, "分类预算", onManageCategoryBudget)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.EventRepeat, "周期账单", onManageRecurring)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))

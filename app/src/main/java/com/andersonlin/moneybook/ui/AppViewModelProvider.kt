@@ -10,6 +10,7 @@ import com.andersonlin.moneybook.ui.bill.AddEditBillViewModel
 import com.andersonlin.moneybook.ui.bill.BillListViewModel
 import com.andersonlin.moneybook.ui.budget.BudgetViewModel
 import com.andersonlin.moneybook.ui.category.CategoryViewModel
+import com.andersonlin.moneybook.ui.categorybudget.CategoryBudgetViewModel
 import com.andersonlin.moneybook.ui.goal.GoalViewModel
 import com.andersonlin.moneybook.ui.home.HomeViewModel
 import com.andersonlin.moneybook.ui.ledger.LedgerViewModel
@@ -30,7 +31,8 @@ object AppViewModelProvider {
                 app().accountRepository,
                 app().budgetRepository,
                 app().ledgerRepository,
-                app().goalRepository
+                app().goalRepository,
+                app().categoryBudgetRepository
             )
         }
         initializer {
@@ -60,6 +62,14 @@ object AppViewModelProvider {
         }
         initializer { AccountViewModel(app().accountRepository) }
         initializer { BudgetViewModel(app().budgetRepository) }
+        initializer {
+            CategoryBudgetViewModel(
+                app().categoryRepository,
+                app().categoryBudgetRepository,
+                app().billRepository,
+                app().ledgerRepository
+            )
+        }
         initializer {
             RecurringViewModel(
                 app().recurringRepository,

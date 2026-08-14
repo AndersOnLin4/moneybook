@@ -44,6 +44,13 @@ data class ChartPoint(
     val income: Long
 )
 
+/** 日历视图的一天 */
+data class CalendarDay(
+    val date: LocalDate,
+    val expense: Long,
+    val income: Long
+)
+
 data class StatsUiState(
     val scale: Int = StatsViewModel.SCALE_MONTH,
     val label: String = monthLabel(YearMonth.now()),
@@ -54,7 +61,9 @@ data class StatsUiState(
     val canGoNext: Boolean = false,
     val chartPoints: List<ChartPoint> = emptyList(),
     val chartWindowLabel: String = "",
-    val chartHasData: Boolean = false
+    val chartHasData: Boolean = false,
+    val calendarMonth: YearMonth = YearMonth.now(),
+    val calendarDays: List<CalendarDay> = emptyList()
 ) {
     val typeLabel: String
         get() = when (type) {
@@ -90,6 +99,7 @@ class StatsViewModel(
         const val CHART_PIE = 0
         const val CHART_BAR = 1
         const val CHART_LINE = 2
+        const val CHART_CALENDAR = 3
     }
 
     private val scale = MutableStateFlow(SCALE_MONTH)
@@ -125,14 +135,18 @@ class StatsViewModel(
         val points = buildChartPoints(result)
 
         val today = LocalDate.now()
-        val canGoNext = when (scale.value) {
-            SCALE_DAY -> anchor.value < today
-            SCALE_WEEK -> anchor.value
-                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                .plusDays(6) < today
-            SCALE_MONTH -> YearMonth.from(anchor.value) < YearMonth.now()
-            SCALE_YEAR -> anchor.value.year < today.year
-            else -> false
+        val canGoNext = if (chartType.value == CHART_CALENDAR) {
+            YearMonth.from(anchor.value) < YearMonth.now()
+        } else {
+            when (scale.value) {
+                SCALE_DAY -> anchor.value < today
+                SCALE_WEEK -> anchor.value
+                    .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                    .plusDays(6) < today
+                SCALE_MONTH -> YearMonth.from(anchor.value) < YearMonth.now()
+                SCALE_YEAR -> anchor.value.year < today.year
+                else -> false
+            }
         }
 
         StatsUiState(
@@ -145,7 +159,9 @@ class StatsViewModel(
             canGoNext = canGoNext,
             chartPoints = points,
             chartWindowLabel = chartWindowLabel(result.query),
-            chartHasData = points.any { it.expense > 0 || it.income > 0 }
+            chartHasData = points.any { it.expense > 0 || it.income > 0 },
+            calendarMonth = YearMonth.from(anchor.value),
+            calendarDays = buildCalendarDays(result)
         )
     }.stateIn(
         scope = viewModelScope,
@@ -184,19 +200,35 @@ class StatsViewModel(
 
     // ---- 图表窗口 ----
 
-    private fun dailyStart(q: StatsQuery): Long = when (q.scale) {
-        SCALE_DAY -> q.anchor.minusDays(6).toEpochDay()
-        SCALE_WEEK -> q.anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toEpochDay()
-        SCALE_MONTH -> YearMonth.from(q.anchor).startEpochDay()
+    private fun dailyStart(q: StatsQuery): Long = when {
+        q.chartType == CHART_CALENDAR -> YearMonth.from(q.anchor).startEpochDay()
+        q.scale == SCALE_DAY -> q.anchor.minusDays(6).toEpochDay()
+        q.scale == SCALE_WEEK -> q.anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).toEpochDay()
+        q.scale == SCALE_MONTH -> YearMonth.from(q.anchor).startEpochDay()
         else -> q.anchor.toEpochDay() // 年维度不使用 daily 数据
     }
 
-    private fun dailyEnd(q: StatsQuery): Long = when (q.scale) {
-        SCALE_DAY -> q.anchor.toEpochDay()
-        SCALE_WEEK -> q.anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    private fun dailyEnd(q: StatsQuery): Long = when {
+        q.chartType == CHART_CALENDAR -> YearMonth.from(q.anchor).endEpochDay()
+        q.scale == SCALE_DAY -> q.anchor.toEpochDay()
+        q.scale == SCALE_WEEK -> q.anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             .plusDays(6).toEpochDay()
-        SCALE_MONTH -> YearMonth.from(q.anchor).endEpochDay()
+        q.scale == SCALE_MONTH -> YearMonth.from(q.anchor).endEpochDay()
         else -> q.anchor.toEpochDay()
+    }
+
+    /** 日历视图数据：锚点所在月的每日收支 */
+    private fun buildCalendarDays(result: QueryResult): List<CalendarDay> {
+        val ym = YearMonth.from(result.query.anchor)
+        val dailyMap = result.daily.groupBy { it.day }
+        return (1..ym.lengthOfMonth()).map { d ->
+            val rows = dailyMap[dayKey(ym.year, ym.monthValue, d)] ?: emptyList()
+            CalendarDay(
+                date = LocalDate.of(ym.year, ym.monthValue, d),
+                expense = rows.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L,
+                income = rows.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L
+            )
+        }
     }
 
     /** 生成柱状/趋势共用的数据点（缺日/缺月补 0） */

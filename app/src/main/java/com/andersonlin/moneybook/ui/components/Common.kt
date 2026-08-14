@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -70,12 +73,28 @@ fun BillRow(
             CategoryIconBadge(category?.icon ?: "❓")
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    text = category?.name ?: "未知分类",
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = category?.name ?: "未知分类",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (bill.attachmentUri != null) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(
+                            imageVector = if (bill.attachmentMime?.startsWith("image/") == true) {
+                                Icons.Filled.Image
+                            } else {
+                                Icons.Filled.AttachFile
+                            },
+                            contentDescription = "有附件",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 val dateText = if (showDate) dateLabel(bill.dateEpochDay) else ""
                 val subtitle = listOfNotNull(
                     dateText.takeIf { it.isNotEmpty() },

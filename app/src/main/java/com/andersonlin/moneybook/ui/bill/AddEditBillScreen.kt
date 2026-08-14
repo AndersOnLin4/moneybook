@@ -1,5 +1,10 @@
 package com.andersonlin.moneybook.ui.bill
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.net.Uri
+import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -12,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,8 +26,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
@@ -52,17 +62,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.andersonlin.moneybook.MainActivity
 import com.andersonlin.moneybook.MoneyBookApp
 import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.ui.AppViewModelProvider
 import com.andersonlin.moneybook.util.fullDateLabel
+
+/** 从任意 Context 向上找 Activity */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -77,7 +97,9 @@ fun AddEditBillScreen(
     val amountFocusRequester = remember { FocusRequester() }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
-    val appContext = LocalContext.current.applicationContext
+    val context = LocalContext.current
+    val appContext = context.applicationContext
+    val activity = remember(context) { context.findActivity() as? MainActivity }
 
     LaunchedEffect(billId) { viewModel.init(billId, defaultType) }
 
@@ -256,6 +278,91 @@ fun AddEditBillScreen(
                         contentDescription = "选择日期",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // 附件
+            Text("附件（可选）", style = MaterialTheme.typography.titleSmall)
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        activity?.pickImage { uri ->
+                            if (uri != null) {
+                                viewModel.setAttachment(uri.toString(), "image/*")
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Icon(Icons.Filled.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("截图 / 相册")
+                }
+                OutlinedButton(
+                    onClick = {
+                        activity?.pickAttachment { uri ->
+                            if (uri != null) {
+                                val mime = runCatching {
+                                    context.contentResolver.getType(uri)
+                                }.getOrNull() ?: "application/octet-stream"
+                                viewModel.setAttachment(uri.toString(), mime)
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Icon(Icons.Filled.AttachFile, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("附件")
+                }
+            }
+
+            if (state.hasAttachment) {
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (state.attachmentIsImage) {
+                            AsyncImage(
+                                model = Uri.parse(state.attachmentUri),
+                                contentDescription = "附件图片",
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.InsertDriveFile,
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = state.attachmentUri
+                                ?.substringAfterLast('/')
+                                ?.takeIf { it.isNotBlank() } ?: "附件",
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = viewModel::clearAttachment) {
+                            Icon(Icons.Filled.Close, contentDescription = "移除附件")
+                        }
+                    }
                 }
             }
 

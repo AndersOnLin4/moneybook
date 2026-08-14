@@ -33,8 +33,13 @@ data class AddEditUiState(
     val categories: List<Category> = emptyList(),
     val accountId: Long = Bill.DEFAULT_ACCOUNT_ID,
     val accounts: List<Account> = emptyList(),
-    val amountError: Boolean = false
-)
+    val amountError: Boolean = false,
+    val attachmentUri: String? = null,
+    val attachmentMime: String? = null
+) {
+    val hasAttachment: Boolean get() = !attachmentUri.isNullOrBlank()
+    val attachmentIsImage: Boolean get() = attachmentMime?.startsWith("image/") == true
+}
 
 sealed interface AddEditEvent {
     data class ShowMessage(val message: String) : AddEditEvent
@@ -120,7 +125,9 @@ class AddEditBillViewModel(
                             note = b.note,
                             dateEpochDay = b.dateEpochDay,
                             categoryId = b.categoryId,
-                            accountId = b.accountId
+                            accountId = b.accountId,
+                            attachmentUri = b.attachmentUri,
+                            attachmentMime = b.attachmentMime
                         )
                     }
                 }
@@ -133,6 +140,12 @@ class AddEditBillViewModel(
     fun setType(type: Int) = _uiState.update { it.copy(type = type, categoryId = null) }
 
     fun setAccount(id: Long) = _uiState.update { it.copy(accountId = id) }
+
+    fun setAttachment(uri: String?, mime: String?) =
+        _uiState.update { it.copy(attachmentUri = uri, attachmentMime = mime) }
+
+    fun clearAttachment() =
+        _uiState.update { it.copy(attachmentUri = null, attachmentMime = null) }
 
     fun setAmount(text: String) {
         // 只允许数字 + 最多一个小数点、两位小数
@@ -177,7 +190,9 @@ class AddEditBillViewModel(
                         accountId = state.accountId,
                         ledgerId = ledgerId,
                         note = state.note.trim(),
-                        dateEpochDay = state.dateEpochDay
+                        dateEpochDay = state.dateEpochDay,
+                        attachmentUri = state.attachmentUri,
+                        attachmentMime = state.attachmentMime
                     )
                 )
             } else {
@@ -188,14 +203,22 @@ class AddEditBillViewModel(
                         categoryId = categoryId,
                         accountId = state.accountId,
                         note = state.note.trim(),
-                        dateEpochDay = state.dateEpochDay
+                        dateEpochDay = state.dateEpochDay,
+                        attachmentUri = state.attachmentUri,
+                        attachmentMime = state.attachmentMime
                     )
                 )
             }
             if (andContinue) {
-                // 保留类型/分类/账户/日期，清空金额与备注，方便连续记账
+                // 保留类型/分类/账户/日期，清空金额与备注与附件，方便连续记账
                 _uiState.update {
-                    it.copy(amountText = "", note = "", amountError = false)
+                    it.copy(
+                        amountText = "",
+                        note = "",
+                        amountError = false,
+                        attachmentUri = null,
+                        attachmentMime = null
+                    )
                 }
                 bill = null
                 _events.emit(AddEditEvent.SavedContinue)

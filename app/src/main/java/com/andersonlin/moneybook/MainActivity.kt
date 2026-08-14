@@ -3,6 +3,7 @@ package com.andersonlin.moneybook
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -46,11 +47,19 @@ class MainActivity : FragmentActivity() {
 
         /** 打开文档（导入）的固定 requestCode */
         private const val OPEN_DOCUMENT_REQUEST_CODE = 0x3333
+
+        /** 相册选图（账单附件）的固定 requestCode */
+        private const val PICK_IMAGE_REQUEST_CODE = 0x4444
+
+        /** 附件文件选择（账单附件）的固定 requestCode */
+        private const val ATTACHMENT_REQUEST_CODE = 0x5555
     }
 
     private var pendingPermissionCallback: ((Boolean) -> Unit)? = null
     private var pendingCreateDocumentCallback: ((android.net.Uri?) -> Unit)? = null
     private var pendingOpenDocumentCallback: ((android.net.Uri?) -> Unit)? = null
+    private var pendingPickImageCallback: ((android.net.Uri?) -> Unit)? = null
+    private var pendingAttachmentCallback: ((android.net.Uri?) -> Unit)? = null
 
     /**
      * 请求通知权限。使用固定的小 requestCode 直接调用，绕开
@@ -91,9 +100,51 @@ class MainActivity : FragmentActivity() {
         startActivityForResult(intent, OPEN_DOCUMENT_REQUEST_CODE)
     }
 
+    /** 唤起系统相册选择图片（截图/照片附件） */
+    fun pickImage(callback: (android.net.Uri?) -> Unit) {
+        pendingPickImageCallback = callback
+        val intent = Intent(
+            if (Build.VERSION.SDK_INT >= 33) {
+                android.provider.MediaStore.ACTION_PICK_IMAGES
+            } else {
+                Intent.ACTION_GET_CONTENT
+            }
+        ).apply {
+            type = "image/*"
+        }
+        runCatching { startActivityForResult(intent, PICK_IMAGE_REQUEST_CODE) }
+            .onFailure {
+                pendingPickImageCallback = null
+                callback(null)
+            }
+    }
+
+    /** 唤起系统文件选择器选择附件（任意文件） */
+    fun pickAttachment(callback: (android.net.Uri?) -> Unit) {
+        pendingAttachmentCallback = callback
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+        }
+        runCatching { startActivityForResult(intent, ATTACHMENT_REQUEST_CODE) }
+            .onFailure {
+                pendingAttachmentCallback = null
+                callback(null)
+            }
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         val uri = if (resultCode == RESULT_OK) data?.data else null
+        // 持久化读取授权，保证重启后附件缩略图仍可访问
+        if (uri != null) {
+            runCatching {
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        }
         when (requestCode) {
             CREATE_DOCUMENT_REQUEST_CODE -> {
                 pendingCreateDocumentCallback?.invoke(uri)
@@ -102,6 +153,14 @@ class MainActivity : FragmentActivity() {
             OPEN_DOCUMENT_REQUEST_CODE -> {
                 pendingOpenDocumentCallback?.invoke(uri)
                 pendingOpenDocumentCallback = null
+            }
+            PICK_IMAGE_REQUEST_CODE -> {
+                pendingPickImageCallback?.invoke(uri)
+                pendingPickImageCallback = null
+            }
+            ATTACHMENT_REQUEST_CODE -> {
+                pendingAttachmentCallback?.invoke(uri)
+                pendingAttachmentCallback = null
             }
         }
     }

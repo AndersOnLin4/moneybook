@@ -33,6 +33,7 @@ import com.andersonlin.moneybook.ui.bill.AddEditBillScreen
 import com.andersonlin.moneybook.ui.bill.BillListScreen
 import com.andersonlin.moneybook.ui.budget.BudgetScreen
 import com.andersonlin.moneybook.ui.category.CategoryScreen
+import com.andersonlin.moneybook.ui.categorybudget.CategoryBudgetScreen
 import com.andersonlin.moneybook.ui.goal.GoalScreen
 import com.andersonlin.moneybook.ui.home.HomeScreen
 import com.andersonlin.moneybook.ui.ledger.LedgerScreen
@@ -57,6 +58,7 @@ object Routes {
     const val LEDGERS = "ledgers"
     const val GOALS = "goals"
     const val REMINDER = "reminder"
+    const val CATEGORY_BUDGET = "category_budget"
     const val ABOUT = "about"
     const val ADD_EDIT = "add_edit?billId={billId}&type={type}"
 
@@ -149,6 +151,7 @@ fun AppRoot(addEvents: Flow<Unit> = emptyFlow()) {
                     onManageCategories = { navController.navigate(Routes.CATEGORIES) },
                     onManageAccounts = { navController.navigate(Routes.ACCOUNTS) },
                     onManageBudget = { navController.navigate(Routes.BUDGET) },
+                    onManageCategoryBudget = { navController.navigate(Routes.CATEGORY_BUDGET) },
                     onManageRecurring = { navController.navigate(Routes.RECURRING) },
                     onManageLedgers = { navController.navigate(Routes.LEDGERS) },
                     onManageGoals = { navController.navigate(Routes.GOALS) },
@@ -186,6 +189,9 @@ fun AppRoot(addEvents: Flow<Unit> = emptyFlow()) {
             }
             composable(Routes.BUDGET) {
                 BudgetScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.CATEGORY_BUDGET) {
+                CategoryBudgetScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.RECURRING) {
                 RecurringScreen(onBack = { navController.popBackStack() })

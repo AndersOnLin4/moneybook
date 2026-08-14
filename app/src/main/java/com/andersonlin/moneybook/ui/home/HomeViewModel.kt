@@ -10,6 +10,7 @@ import com.andersonlin.moneybook.data.model.Ledger
 import com.andersonlin.moneybook.data.repository.AccountRepository
 import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.BudgetRepository
+import com.andersonlin.moneybook.data.repository.CategoryBudgetRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
 import com.andersonlin.moneybook.data.repository.GoalRepository
 import com.andersonlin.moneybook.data.repository.LedgerRepository
@@ -25,6 +26,16 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
 
+/** 分类预算提醒 */
+data class CategoryAlert(
+    val name: String,
+    val icon: String,
+    val usedCents: Long,
+    val budgetCents: Long
+) {
+    val over: Boolean get() = usedCents >= budgetCents
+}
+
 data class HomeUiState(
     val month: YearMonth = YearMonth.now(),
     val income: Long = 0L,
@@ -37,7 +48,8 @@ data class HomeUiState(
     val accounts: Map<Long, Account> = emptyMap(),
     val ledgerId: Long = Bill.DEFAULT_LEDGER_ID,
     val ledgers: List<Ledger> = emptyList(),
-    val goals: List<Goal> = emptyList()
+    val goals: List<Goal> = emptyList(),
+    val categoryAlerts: List<CategoryAlert> = emptyList()
 ) {
     val balance: Long get() = income - expense
 
@@ -56,7 +68,8 @@ class HomeViewModel(
     private val accountRepository: AccountRepository,
     private val budgetRepository: BudgetRepository,
     private val ledgerRepository: LedgerRepository,
-    private val goalRepository: GoalRepository
+    private val goalRepository: GoalRepository,
+    private val categoryBudgetRepository: CategoryBudgetRepository
 ) : ViewModel() {
 
     private val month = YearMonth.now()
@@ -68,6 +81,14 @@ class HomeViewModel(
         val todayExpense: Long
     )
 
+    private data class BaseData(
+        val summary: SummaryData,
+        val bills: List<Bill>,
+        val cats: List<Category>,
+        val accounts: List<Account>,
+        val budgets: List<com.andersonlin.moneybook.data.model.Budget>
+    )
+
     val uiState: StateFlow<HomeUiState> = combine(
         combine(
             ledgerRepository.activeLedgerId,
@@ -76,35 +97,65 @@ class HomeViewModel(
             .flatMapLatest { (ledgerId, ledgers) ->
                 combine(
                     combine(
-                        billRepository.getMonthSummary(ledgerId, month.startEpochDay(), month.endEpochDay()),
-                        billRepository.getDaySummary(ledgerId, LocalDate.now().toEpochDay())
-                    ) { monthSums, daySums ->
-                        SummaryData(
-                            income = monthSums.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L,
-                            expense = monthSums.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L,
-                            todayIncome = daySums.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L,
-                            todayExpense = daySums.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L
-                        )
+                        combine(
+                            billRepository.getMonthSummary(ledgerId, month.startEpochDay(), month.endEpochDay()),
+                            billRepository.getDaySummary(ledgerId, LocalDate.now().toEpochDay())
+                        ) { monthSums, daySums ->
+                            SummaryData(
+                                income = monthSums.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L,
+                                expense = monthSums.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L,
+                                todayIncome = daySums.firstOrNull { it.type == Bill.TYPE_INCOME }?.total ?: 0L,
+                                todayExpense = daySums.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total ?: 0L
+                            )
+                        },
+                        billRepository.getRecentBills(ledgerId, 10),
+                        categoryRepository.getAllCategories(),
+                        accountRepository.getAllAccounts(),
+                        budgetRepository.getAllBudgets()
+                    ) { summary, bills, cats, accounts, budgets ->
+                        BaseData(summary, bills, cats, accounts, budgets)
                     },
-                    billRepository.getRecentBills(ledgerId, 10),
-                    categoryRepository.getAllCategories(),
-                    accountRepository.getAllAccounts(),
-                    budgetRepository.getAllBudgets()
-                ) { summary, bills, cats, accounts, budgets ->
+                    combine(
+                        categoryBudgetRepository.getAllBudgets(),
+                        billRepository.getCategoryStats(
+                            ledgerId,
+                            Bill.TYPE_EXPENSE,
+                            month.startEpochDay(),
+                            month.endEpochDay()
+                        )
+                    ) { categoryBudgets, categoryStats ->
+                        categoryBudgets to categoryStats
+                    }
+                ) { base, (categoryBudgets, categoryStats) ->
+                    val categoryMap = base.cats.associateBy { it.id }
+                    val alerts = categoryBudgets
+                        .filter { it.year == month.year && it.month == month.monthValue }
+                        .mapNotNull { cb ->
+                            val category = categoryMap[cb.categoryId] ?: return@mapNotNull null
+                            val used = categoryStats
+                                .firstOrNull { it.categoryId == cb.categoryId }?.total ?: 0L
+                            if (used >= cb.amountCents * 0.8) {
+                                CategoryAlert(category.name, category.icon, used, cb.amountCents)
+                            } else {
+                                null
+                            }
+                        }
+                        .sortedByDescending { it.usedCents - it.budgetCents }
                     HomeUiState(
                         month = month,
-                        income = summary.income,
-                        expense = summary.expense,
-                        todayIncome = summary.todayIncome,
-                        todayExpense = summary.todayExpense,
-                        budgetCents = budgets
+                        income = base.summary.income,
+                        expense = base.summary.expense,
+                        todayIncome = base.summary.todayIncome,
+                        todayExpense = base.summary.todayExpense,
+                        budgetCents = base.budgets
                             .firstOrNull { it.year == month.year && it.month == month.monthValue }
                             ?.amountCents,
-                        recentBills = bills,
-                        categories = cats.associateBy { it.id },
-                        accounts = accounts.associateBy { it.id },
+                        recentBills = base.bills,
+                        categories = categoryMap,
+                        accounts = base.accounts.associateBy { it.id },
                         ledgerId = ledgerId,
-                        ledgers = ledgers
+                        ledgers = ledgers,
+                        categoryAlerts = alerts.take(3)
                     )
                 }
             },

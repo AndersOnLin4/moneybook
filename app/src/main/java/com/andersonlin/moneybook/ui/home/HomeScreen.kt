@@ -123,6 +123,7 @@ fun HomeScreen(
                         income = state.income,
                         expense = state.expense,
                         budgetCents = state.budgetCents,
+                        categoryAlerts = state.categoryAlerts,
                         onSetBudget = onSetBudget
                     )
                 }
@@ -319,6 +320,7 @@ private fun MonthSummaryCard(
     income: Long,
     expense: Long,
     budgetCents: Long?,
+    categoryAlerts: List<CategoryAlert>,
     onSetBudget: () -> Unit
 ) {
     Card(
@@ -424,6 +426,25 @@ private fun MonthSummaryCard(
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
+            }
+
+            // 分类预算提醒（接近或超支）
+            categoryAlerts.forEach { alert ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = if (alert.over) {
+                        "${alert.icon} ${alert.name} 超支 ${formatCents(alert.usedCents - alert.budgetCents)}"
+                    } else {
+                        "${alert.icon} ${alert.name} 接近预算（${formatCents(alert.usedCents)}/${formatCents(alert.budgetCents)}）"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (alert.over) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                    }
+                )
             }
         }
     }
