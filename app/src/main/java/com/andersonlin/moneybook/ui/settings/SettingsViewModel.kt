@@ -48,13 +48,14 @@ class SettingsViewModel(
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
     }
 
+    /** 导出加密备份（.mbk：GZIP + AES-256-GCM，密钥为应用锁 PIN） */
     fun exportBackup(uri: Uri) {
         viewModelScope.launch {
-            val result = backupManager.exportTo(uri)
+            val result = backupManager.exportEncryptedTo(uri)
             _events.emit(
                 SettingsEvent.ShowMessage(
                     result.fold(
-                        onSuccess = { "导出成功，共 $it 条账单" },
+                        onSuccess = { "已导出加密备份，共 $it 条账单" },
                         onFailure = { "导出失败：${it.message ?: "未知错误"}" }
                     )
                 )

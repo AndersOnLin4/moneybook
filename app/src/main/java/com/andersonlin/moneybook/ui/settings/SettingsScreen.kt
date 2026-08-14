@@ -93,7 +93,7 @@ fun SettingsScreen(
     var showCsvLedgerDialog by remember { mutableStateOf(false) }
 
     val exportFileName = "moneybook_backup_" +
-        LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".json"
+        LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".mbk"
     val csvFileName = "moneybook_bills_" +
         LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".csv"
 
@@ -165,9 +165,9 @@ fun SettingsScreen(
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(
                         Icons.Filled.Upload,
-                        "导出备份（JSON）"
+                        "导出加密备份（.mbk）"
                     ) { 
-                        activity?.createDocument("application/json", exportFileName) { uri ->
+                        activity?.createDocument("application/octet-stream", exportFileName) { uri ->
                             uri?.let { viewModel.exportBackup(it) }
                         }
                     }

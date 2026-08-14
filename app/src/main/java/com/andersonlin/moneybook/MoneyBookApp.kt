@@ -47,7 +47,9 @@ class MoneyBookApp : Application() {
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
     val lockSettingsRepository: LockSettingsRepository by lazy { LockSettingsRepository(this) }
     val reminderRepository: ReminderRepository by lazy { ReminderRepository(this) }
-    val backupManager: BackupManager by lazy { BackupManager(this, database) }
+    val backupManager: BackupManager by lazy {
+        BackupManager(this, database, lockSettingsRepository)
+    }
 
     override fun onCreate() {
         super.onCreate()

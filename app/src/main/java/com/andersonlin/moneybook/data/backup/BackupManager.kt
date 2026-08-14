@@ -11,109 +11,203 @@ import com.andersonlin.moneybook.data.model.DefaultLedgers
 import com.andersonlin.moneybook.data.model.Goal
 import com.andersonlin.moneybook.data.model.Ledger
 import com.andersonlin.moneybook.data.model.RecurringBill
+import com.andersonlin.moneybook.data.settings.LockSettingsRepository
 import com.andersonlin.moneybook.util.formatCentsPlain
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.security.MessageDigest
+import java.security.SecureRandom
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
+import javax.crypto.Cipher
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 /**
- * JSON 备份管理：导出 / 导入恢复（包含分类、账户、账本、预算、周期账单、存钱目标与全部账单）。
- * 兼容 v1.x 旧备份：无 ledgers/goals/recurring 字段时自动补默认账本并归入账单。
+ * 备份管理：
+ * - 明文 JSON 导出/导入（保留兼容旧版备份）
+ * - 加密备份：JSON → GZIP 压缩 → AES-256-GCM 加密（系统内置库，零第三方依赖），
+ *   文件扩展名 .mbk，密钥由应用锁 PIN 派生（未设锁时用内置密钥）。
+ * - 导入自动识别：.mbk 加密包自动解密，旧 .json 明文直接读取。
  * 通过系统文件选择器（SAF）读写 Uri，无需任何权限。
  */
 class BackupManager(
     private val context: Context,
-    private val database: AppDatabase
+    private val database: AppDatabase,
+    private val lockSettingsRepository: LockSettingsRepository
 ) {
 
-    /** 导出全部数据为 JSON 到指定 Uri，返回账单条数 */
+    companion object {
+        /** 加密备份文件头标识 */
+        private val MAGIC = byteArrayOf('M'.code.toByte(), 'B'.code.toByte(), 'K'.code.toByte(), '1'.code.toByte())
+
+        /** 未设置应用锁时的内置派生密钥盐 */
+        private const val DEFAULT_KEY_SALT = "moneybook-default-key-v1"
+    }
+
+    /** 构建完整备份 JSON（全部账本、分类、账户、预算、周期账单、存钱目标、账单） */
+    private suspend fun buildBackupJson(): Pair<String, Int> {
+        val bills = database.billDao().getAllSnapshot()
+        val categories = database.categoryDao().getAllSnapshot()
+        val accounts = database.accountDao().getAllSnapshot()
+        val ledgers = database.ledgerDao().getAllSnapshot()
+        val recurring = database.recurringBillDao().getAllSnapshot()
+        val goals = database.goalDao().getAllSnapshot()
+
+        val root = JSONObject()
+        root.put("app", "moneybook")
+        root.put("version", 2)
+        root.put("exportedAt", LocalDateTime.now().toString())
+        root.put("categories", JSONArray().apply {
+            categories.forEach { c ->
+                put(JSONObject().apply {
+                    put("id", c.id); put("name", c.name); put("type", c.type)
+                    put("icon", c.icon); put("isDefault", c.isDefault); put("sortOrder", c.sortOrder)
+                })
+            }
+        })
+        root.put("accounts", JSONArray().apply {
+            accounts.forEach { a ->
+                put(JSONObject().apply {
+                    put("id", a.id); put("name", a.name); put("icon", a.icon)
+                    put("isDefault", a.isDefault); put("sortOrder", a.sortOrder)
+                })
+            }
+        })
+        root.put("ledgers", JSONArray().apply {
+            ledgers.forEach { l ->
+                put(JSONObject().apply {
+                    put("id", l.id); put("name", l.name); put("icon", l.icon)
+                    put("sortOrder", l.sortOrder); put("createdAt", l.createdAt)
+                })
+            }
+        })
+        root.put("recurring", JSONArray().apply {
+            recurring.forEach { r ->
+                put(JSONObject().apply {
+                    put("id", r.id); put("type", r.type); put("amountCents", r.amountCents)
+                    put("categoryId", r.categoryId); put("accountId", r.accountId)
+                    put("ledgerId", r.ledgerId); put("note", r.note); put("cycle", r.cycle)
+                    put("startEpochDay", r.startEpochDay)
+                    put("lastGeneratedEpochDay", r.lastGeneratedEpochDay)
+                    put("enabled", r.enabled)
+                })
+            }
+        })
+        root.put("goals", JSONArray().apply {
+            goals.forEach { g ->
+                put(JSONObject().apply {
+                    put("id", g.id); put("name", g.name); put("icon", g.icon)
+                    put("targetCents", g.targetCents); put("savedCents", g.savedCents)
+                    put("deadlineEpochDay", g.deadlineEpochDay); put("createdAt", g.createdAt)
+                })
+            }
+        })
+        root.put("bills", JSONArray().apply {
+            bills.forEach { b ->
+                put(JSONObject().apply {
+                    put("id", b.id); put("type", b.type); put("amountCents", b.amountCents)
+                    put("categoryId", b.categoryId); put("accountId", b.accountId)
+                    put("ledgerId", b.ledgerId); put("note", b.note)
+                    put("dateEpochDay", b.dateEpochDay); put("createdAt", b.createdAt)
+                    put("attachmentUri", b.attachmentUri ?: JSONObject.NULL)
+                    put("attachmentMime", b.attachmentMime ?: JSONObject.NULL)
+                })
+            }
+        })
+        return root.toString(2) to bills.size
+    }
+
+    /** 导出明文 JSON（兼容旧版） */
     suspend fun exportTo(uri: Uri): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
-            val bills = database.billDao().getAllSnapshot()
-            val categories = database.categoryDao().getAllSnapshot()
-            val accounts = database.accountDao().getAllSnapshot()
-            val ledgers = database.ledgerDao().getAllSnapshot()
-            val recurring = database.recurringBillDao().getAllSnapshot()
-            val goals = database.goalDao().getAllSnapshot()
-
-            val root = JSONObject()
-            root.put("app", "moneybook")
-            root.put("version", 2)
-            root.put("exportedAt", LocalDateTime.now().toString())
-
-            root.put("categories", JSONArray().apply {
-                categories.forEach { c ->
-                    put(JSONObject().apply {
-                        put("id", c.id); put("name", c.name); put("type", c.type)
-                        put("icon", c.icon); put("isDefault", c.isDefault); put("sortOrder", c.sortOrder)
-                    })
-                }
-            })
-            root.put("accounts", JSONArray().apply {
-                accounts.forEach { a ->
-                    put(JSONObject().apply {
-                        put("id", a.id); put("name", a.name); put("icon", a.icon)
-                        put("isDefault", a.isDefault); put("sortOrder", a.sortOrder)
-                    })
-                }
-            })
-            root.put("ledgers", JSONArray().apply {
-                ledgers.forEach { l ->
-                    put(JSONObject().apply {
-                        put("id", l.id); put("name", l.name); put("icon", l.icon)
-                        put("sortOrder", l.sortOrder); put("createdAt", l.createdAt)
-                    })
-                }
-            })
-            root.put("recurring", JSONArray().apply {
-                recurring.forEach { r ->
-                    put(JSONObject().apply {
-                        put("id", r.id); put("type", r.type); put("amountCents", r.amountCents)
-                        put("categoryId", r.categoryId); put("accountId", r.accountId)
-                        put("ledgerId", r.ledgerId); put("note", r.note); put("cycle", r.cycle)
-                        put("startEpochDay", r.startEpochDay)
-                        put("lastGeneratedEpochDay", r.lastGeneratedEpochDay)
-                        put("enabled", r.enabled)
-                    })
-                }
-            })
-            root.put("goals", JSONArray().apply {
-                goals.forEach { g ->
-                    put(JSONObject().apply {
-                        put("id", g.id); put("name", g.name); put("icon", g.icon)
-                        put("targetCents", g.targetCents); put("savedCents", g.savedCents)
-                        put("deadlineEpochDay", g.deadlineEpochDay); put("createdAt", g.createdAt)
-                    })
-                }
-            })
-            root.put("bills", JSONArray().apply {
-                bills.forEach { b ->
-                    put(JSONObject().apply {
-                        put("id", b.id); put("type", b.type); put("amountCents", b.amountCents)
-                        put("categoryId", b.categoryId); put("accountId", b.accountId)
-                        put("ledgerId", b.ledgerId); put("note", b.note)
-                        put("dateEpochDay", b.dateEpochDay); put("createdAt", b.createdAt)
-                    })
-                }
-            })
-
-            val text = root.toString(2)
+            val (text, count) = buildBackupJson()
             val output = context.contentResolver.openOutputStream(uri)
                 ?: error("无法打开输出流")
             output.use { it.write(text.toByteArray(Charsets.UTF_8)) }
-            bills.size
+            count
         }
     }
 
-    /** 从指定 Uri 读取 JSON 并覆盖恢复，返回恢复的账单条数 */
+    /**
+     * 导出加密备份（.mbk）：JSON → GZIP → AES-256-GCM。
+     * 密钥由应用锁 PIN 派生；未设置应用锁时使用内置密钥。
+     */
+    suspend fun exportEncryptedTo(uri: Uri): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            val (text, count) = buildBackupJson()
+            val compressed = gzip(text.toByteArray(Charsets.UTF_8))
+            val encrypted = encryptAesGcm(compressed, deriveKey())
+            val output = context.contentResolver.openOutputStream(uri)
+                ?: error("无法打开输出流")
+            output.use { it.write(MAGIC + encrypted) }
+            count
+        }
+    }
+
+    /** 密钥派生：SHA-256(PIN + 固定盐)；无锁 PIN 时用内置盐 */
+    private suspend fun deriveKey(): SecretKeySpec {
+        val lockSettings = lockSettingsRepository.settings.first()
+        val secret = when {
+            lockSettings.hasPin -> lockSettings.pinHash + ":" + DEFAULT_KEY_SALT
+            else -> DEFAULT_KEY_SALT
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(secret.toByteArray(Charsets.UTF_8))
+        return SecretKeySpec(digest, "AES")
+    }
+
+    private fun encryptAesGcm(data: ByteArray, key: SecretKeySpec): ByteArray {
+        val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, iv))
+        return iv + cipher.doFinal(data)
+    }
+
+    private fun decryptAesGcm(payload: ByteArray, key: SecretKeySpec): ByteArray {
+        val iv = payload.copyOfRange(0, 12)
+        val cipherText = payload.copyOfRange(12, payload.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
+        return cipher.doFinal(cipherText)
+    }
+
+    private fun gzip(data: ByteArray): ByteArray {
+        val bos = ByteArrayOutputStream()
+        GZIPOutputStream(bos).use { it.write(data) }
+        return bos.toByteArray()
+    }
+
+    private fun gunzip(data: ByteArray): ByteArray =
+        GZIPInputStream(ByteArrayInputStream(data)).use { it.readBytes() }
+
+    /** 从指定 Uri 读取备份并覆盖恢复（自动识别 .mbk 加密包与旧 .json），返回恢复的账单条数 */
     suspend fun importFrom(uri: Uri): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
             val input = context.contentResolver.openInputStream(uri)
                 ?: error("无法打开文件")
-            val text = input.use { it.readBytes().toString(Charsets.UTF_8) }
+            val bytes = input.use { it.readBytes() }
+
+            val text = if (bytes.size > MAGIC.size && bytes.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)) {
+                // .mbk 加密备份：解密 + 解压
+                val payload = bytes.copyOfRange(MAGIC.size, bytes.size)
+                val plain = try {
+                    decryptAesGcm(payload, deriveKey())
+                } catch (e: Exception) {
+                    error("备份解密失败：应用锁密码不匹配或文件已损坏")
+                }
+                gunzip(plain).toString(Charsets.UTF_8)
+            } else {
+                // 旧版明文 JSON
+                bytes.toString(Charsets.UTF_8)
+            }
 
             val root = JSONObject(text)
             if (root.optString("app") != "moneybook" && !root.has("bills")) {
