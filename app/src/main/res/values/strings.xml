@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">记账本</string>
-    <string name="widget_label">记账本小组件</string>
+    <string name="app_name">记一笔</string>
+    <string name="widget_label">记一笔小组件</string>
     <string name="widget_description">显示本月结余，一键快捷记账</string>
 </resources>

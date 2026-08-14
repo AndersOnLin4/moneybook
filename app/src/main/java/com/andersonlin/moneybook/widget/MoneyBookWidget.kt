@@ -105,7 +105,7 @@ private fun WidgetContent(
                 verticalAlignment = Alignment.Vertical.CenterVertically
             ) {
                 Text(
-                    text = "记账本 · $ledgerName",
+                    text = "记一笔 · $ledgerName",
                     style = TextStyle(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,

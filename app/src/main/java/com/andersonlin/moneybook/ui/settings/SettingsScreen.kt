@@ -52,11 +52,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -95,6 +101,8 @@ fun SettingsScreen(
     val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
     val lockHasPin by viewModel.lockHasPin.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     var showImportConfirm by remember { mutableStateOf(false) }
     var showCsvLedgerDialog by remember { mutableStateOf(false) }
@@ -262,11 +270,85 @@ fun SettingsScreen(
             }
 
             Text(
-                text = "版本 1.0.0 · 所有数据仅保存在本机，应用不申请网络权限",
+                text = "版本 1.7.0 · 所有数据仅保存在本机，应用不申请网络权限",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
+
+            // 关于作者
+            SettingsSectionHeader("关于作者")
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "✍️ 记一笔 · MoneyBook",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "v1.7.0",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "独立开发的本地记账小工具 —— 零网络、零账号，你的账只属于你。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    HorizontalDivider()
+                    AuthorContactRow(
+                        label = "邮箱",
+                        value = "andersonlin1107@gmail.com",
+                        action = "复制"
+                    ) {
+                        clipboard.setText(AnnotatedString("andersonlin1107@gmail.com"))
+                        scope.launch { snackbarHostState.showSnackbar("已复制邮箱") }
+                    }
+                    AuthorContactRow(
+                        label = "微信",
+                        value = "AndersOnLin4",
+                        action = "复制"
+                    ) {
+                        clipboard.setText(AnnotatedString("AndersOnLin4"))
+                        scope.launch { snackbarHostState.showSnackbar("已复制微信号") }
+                    }
+                    AuthorContactRow(
+                        label = "GitHub",
+                        value = "github.com/AndersOnLin4/moneybook",
+                        action = "打开"
+                    ) {
+                        activity?.openExternalLink("https://github.com/AndersOnLin4/moneybook")
+                    }
+                    HorizontalDivider()
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "© 2026 AndersOnLin4 · 保留所有权利 · 软件著作权登记中",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "个人项目能力有限 · 高级功能开发与商业合作请备注来意",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 
@@ -438,6 +520,43 @@ private fun ThemeOptionRow(title: String, selected: Boolean, onClick: () -> Unit
             modifier = Modifier.weight(1f)
         )
         RadioButton(selected = selected, onClick = onClick)
+    }
+}
+
+@Composable
+private fun AuthorContactRow(
+    label: String,
+    value: String,
+    action: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(64.dp)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = action,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 12.dp)
+        )
     }
 }
 

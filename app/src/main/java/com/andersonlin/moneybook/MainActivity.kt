@@ -63,12 +63,19 @@ class MainActivity : FragmentActivity() {
     private var pendingAttachmentCallback: ((android.net.Uri?) -> Unit)? = null
 
     /**
+     * 应用内发起的系统页面跳转（相册/文件选择器/权限弹窗）返回时跳过锁屏：
+     * 否则用户添加附件回来会被要求重新解锁，无法完成带附件的账单。
+     */
+    private var suppressNextLock = false
+
+    /**
      * 请求通知权限。使用固定的小 requestCode 直接调用，绕开
      * androidx.activity 1.9.0 权限请求路径生成超大随机 requestCode 的缺陷
      * （HyperOS 上会导致 "Can only use lower 16 bits for requestCode" 崩溃）。
      */
     fun requestNotificationPermission(callback: (Boolean) -> Unit) {
         pendingPermissionCallback = callback
+        suppressNextLock = true
         ActivityCompat.requestPermissions(
             this,
             arrayOf(Manifest.permission.POST_NOTIFICATIONS),
@@ -79,6 +86,7 @@ class MainActivity : FragmentActivity() {
     /** 弹出系统「另存为」对话框创建文档（导出用），固定 requestCode 避免库缺陷 */
     fun createDocument(mimeType: String, suggestedName: String, callback: (android.net.Uri?) -> Unit) {
         pendingCreateDocumentCallback = callback
+        suppressNextLock = true
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = mimeType
@@ -90,6 +98,7 @@ class MainActivity : FragmentActivity() {
     /** 弹出系统文件选择器（导入用），固定 requestCode 避免库缺陷；不过滤类型以兼容 .mbk/.json */
     fun openDocument(callback: (android.net.Uri?) -> Unit) {
         pendingOpenDocumentCallback = callback
+        suppressNextLock = true
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
@@ -100,6 +109,7 @@ class MainActivity : FragmentActivity() {
     /** 唤起系统相册选择图片（截图/照片附件） */
     fun pickImage(callback: (android.net.Uri?) -> Unit) {
         pendingPickImageCallback = callback
+        suppressNextLock = true
         val intent = Intent(
             if (Build.VERSION.SDK_INT >= 33) {
                 android.provider.MediaStore.ACTION_PICK_IMAGES
@@ -119,6 +129,7 @@ class MainActivity : FragmentActivity() {
     /** 唤起系统文件选择器选择附件（任意文件） */
     fun pickAttachment(callback: (android.net.Uri?) -> Unit) {
         pendingAttachmentCallback = callback
+        suppressNextLock = true
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
@@ -149,6 +160,13 @@ class MainActivity : FragmentActivity() {
         }
         runCatching { startActivity(Intent.createChooser(intent, "打开附件")) }
             .onFailure { runCatching { startActivity(intent) } }
+    }
+
+    /** 打开外部链接（系统浏览器处理，应用本身不联网） */
+    fun openExternalLink(url: String) {
+        suppressNextLock = true
+        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+        runCatching { startActivity(intent) }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -269,8 +287,8 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // 每次回到前台（含冷启动）都要求解锁；屏幕旋转不重复锁定
-        if (wentBackground && !isChangingConfigurations) {
+        // 每次回到前台（含冷启动）都要求解锁；屏幕旋转与内部系统页跳转（相册/文件选择器）不重复锁定
+        if (wentBackground && !isChangingConfigurations && !suppressNextLock) {
             lifecycleScope.launch {
                 if ((application as MoneyBookApp).lockSettingsRepository
                         .settings.first().enabled
@@ -279,6 +297,7 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+        suppressNextLock = false
         wentBackground = false
         // 刷新桌面小组件数据
         (application as MoneyBookApp).requestWidgetUpdate()
