@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.andersonlin.moneybook.data.model.Category
 import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.CategoryRepository
+import com.andersonlin.moneybook.data.repository.RecurringRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +21,8 @@ sealed interface CategoryEvent {
 /** 分类管理：内置分类不可删除，自定义分类可增删 */
 class CategoryViewModel(
     private val categoryRepository: CategoryRepository,
-    private val billRepository: BillRepository
+    private val billRepository: BillRepository,
+    private val recurringRepository: RecurringRepository
 ) : ViewModel() {
 
     val categories: StateFlow<List<Category>> = categoryRepository.getAllCategories()
@@ -79,6 +81,7 @@ class CategoryViewModel(
     fun confirmDelete(category: Category) {
         viewModelScope.launch {
             billRepository.deleteByCategory(category.id)
+            recurringRepository.deleteByCategory(category.id)
             categoryRepository.deleteCategory(category)
             _events.emit(CategoryEvent.ShowMessage("已删除「${category.name}」及其账单"))
         }

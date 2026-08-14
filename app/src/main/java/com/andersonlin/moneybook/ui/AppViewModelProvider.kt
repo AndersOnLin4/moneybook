@@ -21,7 +21,7 @@ object AppViewModelProvider {
         initializer { AddEditBillViewModel(app().billRepository, app().categoryRepository) }
         initializer { StatsViewModel(app().billRepository, app().categoryRepository) }
         initializer { SettingsViewModel(app().settingsRepository, app().backupManager) }
-        initializer { CategoryViewModel(app().categoryRepository, app().billRepository) }
+        initializer { CategoryViewModel(app().categoryRepository, app().billRepository, app().recurringRepository) }
     }
 }
 

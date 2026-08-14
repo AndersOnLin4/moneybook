@@ -6,15 +6,14 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * 账单实体
+ * 周期账单：按周/月/年自动生成账单。
  *
- * @param type         0 = 支出，1 = 收入
- * @param amountCents  金额，单位「分」（避免浮点误差）
- * @param accountId    所属账户（1 = 默认「现金」账户）
- * @param dateEpochDay 记账日期（LocalDate.toEpochDay()），只精确到天
+ * @param cycle                  0 = 每月，1 = 每周，2 = 每年
+ * @param startEpochDay          开始日期（首个周期从此日期的下一个周期开始生成）
+ * @param lastGeneratedEpochDay  最近一次已生成账单的日期（推进游标，防重复）
  */
 @Entity(
-    tableName = "bills",
+    tableName = "recurring_bills",
     foreignKeys = [
         ForeignKey(
             entity = Category::class,
@@ -29,23 +28,23 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.RESTRICT
         )
     ],
-    indices = [Index("dateEpochDay"), Index("categoryId"), Index("type"), Index("accountId")]
+    indices = [Index("categoryId"), Index("accountId")]
 )
-data class Bill(
+data class RecurringBill(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
     val type: Int,
     val amountCents: Long,
     val categoryId: Long,
-    val accountId: Long = DEFAULT_ACCOUNT_ID,
+    val accountId: Long = Bill.DEFAULT_ACCOUNT_ID,
     val note: String = "",
-    val dateEpochDay: Long,
-    val createdAt: Long = System.currentTimeMillis()
+    val cycle: Int,
+    val startEpochDay: Long,
+    val lastGeneratedEpochDay: Long,
+    val enabled: Boolean = true
 ) {
     companion object {
-        const val TYPE_EXPENSE = 0
-        const val TYPE_INCOME = 1
-
-        /** 默认账户（现金）的 id，由迁移/建库时的种子数据保证 */
-        const val DEFAULT_ACCOUNT_ID = 1L
+        const val CYCLE_MONTHLY = 0
+        const val CYCLE_WEEKLY = 1
+        const val CYCLE_YEARLY = 2
     }
 }

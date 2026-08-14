@@ -71,6 +71,10 @@ interface BillDao {
     @Query("DELETE FROM bills WHERE categoryId = :categoryId")
     suspend fun deleteByCategory(categoryId: Long)
 
+    /** 账户删除时把账单转移到其它账户 */
+    @Query("UPDATE bills SET accountId = :newId WHERE accountId = :oldId")
+    suspend fun reassignAccount(oldId: Long, newId: Long)
+
     // ---- 备份 / 恢复 ----
 
     @Query("SELECT * FROM bills ORDER BY dateEpochDay ASC, id ASC")
