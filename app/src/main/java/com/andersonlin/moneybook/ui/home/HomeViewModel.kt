@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -107,4 +108,9 @@ class HomeViewModel(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = HomeUiState(month = month)
         )
+
+    /** 切换当前账本（首页、账单、统计、小组件随动） */
+    fun setActiveLedger(id: Long) {
+        viewModelScope.launch { ledgerRepository.setActiveLedger(id) }
+    }
 }

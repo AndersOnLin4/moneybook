@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ChevronRight
@@ -64,13 +65,16 @@ fun SettingsScreen(
     onManageAccounts: () -> Unit,
     onManageBudget: () -> Unit,
     onManageRecurring: () -> Unit,
+    onManageLedgers: () -> Unit,
     onLockSettings: () -> Unit,
     onAbout: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var showImportConfirm by remember { mutableStateOf(false) }
+    var showCsvLedgerDialog by remember { mutableStateOf(false) }
 
     val exportFileName = "moneybook_backup_" +
         LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".json"
@@ -81,9 +85,10 @@ fun SettingsScreen(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri -> uri?.let { viewModel.exportBackup(it) } }
 
+    var csvLedgerId by remember { mutableStateOf(1L) }
     val csvLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv")
-    ) { uri -> uri?.let { viewModel.exportCsv(it) } }
+    ) { uri -> uri?.let { viewModel.exportCsv(it, csvLedgerId) } }
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -144,6 +149,8 @@ fun SettingsScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column {
+                    SettingsRow(Icons.AutoMirrored.Filled.MenuBook, "账本管理", onManageLedgers)
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.Category, "分类管理", onManageCategories)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.AccountBalanceWallet, "账户管理", onManageAccounts)
@@ -155,7 +162,7 @@ fun SettingsScreen(
                     SettingsRow(
                         Icons.Filled.TableChart,
                         "导出账单 CSV（Excel 可打开）"
-                    ) { csvLauncher.launch(csvFileName) }
+                    ) { showCsvLedgerDialog = true }
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(
                         Icons.Filled.Upload,
@@ -227,6 +234,40 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showImportConfirm = false }) { Text("取消") }
+            }
+        )
+    }
+
+    if (showCsvLedgerDialog) {
+        AlertDialog(
+            onDismissRequest = { showCsvLedgerDialog = false },
+            title = { Text("选择要导出的账本") },
+            text = {
+                Column {
+                    ledgers.forEach { ledger ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    csvLedgerId = ledger.id
+                                    showCsvLedgerDialog = false
+                                    csvLauncher.launch(csvFileName.replace(".csv", "_L${ledger.id}.csv"))
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${ledger.icon} ${ledger.name}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showCsvLedgerDialog = false }) { Text("取消") }
             }
         )
     }

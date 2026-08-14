@@ -1,6 +1,7 @@
 package com.andersonlin.moneybook.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -31,6 +34,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,13 +57,34 @@ fun HomeScreen(
     onViewAll: () -> Unit,
     onBillClick: (Long) -> Unit,
     onSetBudget: () -> Unit,
+    onManageLedgers: () -> Unit,
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var showLedgerDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { CenterAlignedTopAppBar(title = { Text("记账本") }) },
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { showLedgerDialog = true }
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(state.ledgerName)
+                        Icon(
+                            Icons.Filled.ArrowDropDown,
+                            contentDescription = "切换账本",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddBill,
@@ -128,6 +155,49 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    // 账本切换
+    if (showLedgerDialog) {
+        AlertDialog(
+            onDismissRequest = { showLedgerDialog = false },
+            title = { Text("切换账本") },
+            text = {
+                Column {
+                    state.ledgers.forEach { ledger ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setActiveLedger(ledger.id)
+                                    showLedgerDialog = false
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${ledger.icon} ${ledger.name}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (ledger.id == state.ledgerId) {
+                                Text(
+                                    text = "使用中",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onManageLedgers) { Text("管理账本") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLedgerDialog = false }) { Text("关闭") }
+            }
+        )
     }
 }
 

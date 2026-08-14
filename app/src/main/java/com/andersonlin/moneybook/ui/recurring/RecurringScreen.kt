@@ -163,6 +163,7 @@ fun RecurringScreen(
             editing = editing,
             categories = state.categories.values.toList(),
             accounts = state.accounts.values.toList(),
+            ledgers = state.ledgers.values.toList(),
             onDismiss = { showEditor = false },
             onConfirm = { result ->
                 if (result.id > 0L) {
@@ -267,6 +268,7 @@ private fun RecurringEditorDialog(
     editing: RecurringBill?,
     categories: List<com.andersonlin.moneybook.data.model.Category>,
     accounts: List<com.andersonlin.moneybook.data.model.Account>,
+    ledgers: List<com.andersonlin.moneybook.data.model.Ledger>,
     onDismiss: () -> Unit,
     onConfirm: (RecurringBill) -> Unit
 ) {
@@ -276,6 +278,7 @@ private fun RecurringEditorDialog(
     }
     var categoryId by remember { mutableStateOf(editing?.categoryId) }
     var accountId by remember { mutableStateOf(editing?.accountId ?: Bill.DEFAULT_ACCOUNT_ID) }
+    var ledgerId by remember { mutableStateOf(editing?.ledgerId ?: 0L) }
     var note by remember { mutableStateOf(editing?.note ?: "") }
     var cycle by remember { mutableStateOf(editing?.cycle ?: RecurringBill.CYCLE_MONTHLY) }
     var startEpochDay by remember { mutableStateOf(editing?.startEpochDay ?: LocalDate.now().toEpochDay()) }
@@ -354,6 +357,20 @@ private fun RecurringEditorDialog(
                     }
                 }
                 Spacer(Modifier.height(12.dp))
+                Text("账本（未选择则使用当前账本）", style = MaterialTheme.typography.labelMedium)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    ledgers.forEach { ledger ->
+                        FilterChip(
+                            selected = ledgerId == ledger.id,
+                            onClick = { ledgerId = ledger.id },
+                            label = { Text("${ledger.icon} ${ledger.name}") }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
                 Text("重复周期", style = MaterialTheme.typography.labelMedium)
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -426,8 +443,8 @@ private fun RecurringEditorDialog(
                         amountCents = cents,
                         categoryId = catId,
                         accountId = accountId,
-                        // 0 表示使用当前活动账本（由 ViewModel 填充）
-                        ledgerId = editing?.ledgerId ?: 0L,
+                        // 新增未选择时 0 = 当前活动账本（由 ViewModel 填充）
+                        ledgerId = ledgerId,
                         note = note.trim(),
                         cycle = cycle,
                         startEpochDay = startEpochDay,

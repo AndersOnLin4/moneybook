@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.andersonlin.moneybook.data.backup.BackupManager
+import com.andersonlin.moneybook.data.model.Ledger
 import com.andersonlin.moneybook.data.repository.LedgerRepository
 import com.andersonlin.moneybook.data.settings.SettingsRepository
 import com.andersonlin.moneybook.data.settings.ThemeMode
@@ -32,6 +33,14 @@ class SettingsViewModel(
             initialValue = ThemeMode.SYSTEM
         )
 
+    /** 账本列表（CSV 导出选账本用） */
+    val ledgers: StateFlow<List<Ledger>> = ledgerRepository.getAllLedgers()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
     private val _events = MutableSharedFlow<SettingsEvent>()
     val events = _events.asSharedFlow()
 
@@ -53,9 +62,9 @@ class SettingsViewModel(
         }
     }
 
-    fun exportCsv(uri: Uri) {
+    /** 导出指定账本的账单为 CSV */
+    fun exportCsv(uri: Uri, ledgerId: Long) {
         viewModelScope.launch {
-            val ledgerId = ledgerRepository.getActiveLedgerId()
             val result = backupManager.exportCsvTo(uri, ledgerId)
             _events.emit(
                 SettingsEvent.ShowMessage(
