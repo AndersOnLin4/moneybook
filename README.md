@@ -2,7 +2,7 @@
 
 > 一款**零网络、零账号、零广告**的本地记账应用 —— 你的每一笔账，只属于你的手机。
 
-[![Release](https://img.shields.io/badge/Release-v1.5.1-brightgreen)](https://github.com/AndersOnLin4/moneybook/releases/latest)
+[![Release](https://img.shields.io/badge/Release-v1.6.0-brightgreen)](https://github.com/AndersOnLin4/moneybook/releases/latest)
 ![Android](https://img.shields.io/badge/Android-9.0%2B-3DDC84)
 ![License](https://img.shields.io/badge/License-All%20Rights%20Reserved-lightgrey)
 
@@ -31,9 +31,13 @@
 
 > 支持 **Android 9.0 及以上**的全部手机品牌，实测兼容小米 HyperOS 3.0。
 
-## 🖼 界面截图
+## 🚀 立刻开始你的记账之旅
 
-*（截图将展示：首页、记一笔、统计图表、日历视图、多账本、存钱目标、加密备份等）*
+**第一次打开**：跟随引导页，1 分钟完成账本、预算与安全设置，也可以全部跳过直接开始。
+
+**日常使用**：首页点 ➕ 记一笔（支持连续记账）→ 月底打开统计页看图表复盘 → 设置预算和存钱目标，让每一分钱都花得明白。
+
+**数据安全**：定期「导出加密备份」，换手机、刷系统都不怕丢数据。
 
 ## ❓ 常见问题
 

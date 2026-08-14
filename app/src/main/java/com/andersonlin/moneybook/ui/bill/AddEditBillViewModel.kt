@@ -66,8 +66,8 @@ class AddEditBillViewModel(
     private var bill: Bill? = null
     private var initialized = false
 
-    /** 进入页面时调用：billId > 0 为编辑模式，否则为新增 */
-    fun init(billId: Long, defaultType: Int) {
+    /** 进入页面时调用：billId > 0 为编辑模式，否则为新增；initialDate > 0 时作为新增的预填日期 */
+    fun init(billId: Long, defaultType: Int, initialDate: Long = 0L) {
         if (initialized) return
         initialized = true
 
@@ -133,7 +133,13 @@ class AddEditBillViewModel(
                 }
             }
         } else {
-            _uiState.update { it.copy(isEdit = false, type = defaultType) }
+            _uiState.update {
+                it.copy(
+                    isEdit = false,
+                    type = defaultType,
+                    dateEpochDay = if (initialDate > 0) initialDate else LocalDate.now().toEpochDay()
+                )
+            }
         }
     }
 

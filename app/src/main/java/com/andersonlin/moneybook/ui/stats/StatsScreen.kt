@@ -1,11 +1,13 @@
 package com.andersonlin.moneybook.ui.stats
 
+import android.content.Context
+import android.content.ContextWrapper
+import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,23 +35,29 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.andersonlin.moneybook.MainActivity
 import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.ui.AppViewModelProvider
 import com.andersonlin.moneybook.ui.components.EmptyState
@@ -56,21 +65,76 @@ import com.andersonlin.moneybook.ui.theme.ChartColors
 import com.andersonlin.moneybook.util.formatCents
 import com.andersonlin.moneybook.util.fullDateLabel
 import com.andersonlin.moneybook.util.monthLabel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen(
+    onAddBillForDate: (Long) -> Unit,
     viewModel: StatsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val expenseColor = MaterialTheme.colorScheme.error
     val incomeColor = MaterialTheme.colorScheme.primary
+    val context = LocalContext.current
+    val activity = remember(context) {
+        var current: Context? = context
+        var result: MainActivity? = null
+        while (current != null && result == null) {
+            when (current) {
+                is MainActivity -> result = current
+                is ContextWrapper -> current = current.baseContext
+                else -> current = null
+            }
+        }
+        result
+    }
+    val scope = rememberCoroutineScope()
+    var saveMessage by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    fun saveChartImage() {
+        val fileName = "moneybook_stats_" +
+            LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".png"
+        activity?.createDocument("image/png", fileName) { uri ->
+            if (uri != null) {
+                scope.launch(Dispatchers.IO) {
+                    val ok = runCatching {
+                        val bitmap = ChartBitmapRenderer.render(state, 1080, 1280)
+                        context.contentResolver.openOutputStream(uri)?.use { out ->
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                        } != null
+                    }.getOrDefault(false)
+                    saveMessage = if (ok) "统计图已保存" else "保存失败，请重试"
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(saveMessage) {
+        saveMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            saveMessage = null
+        }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { CenterAlignedTopAppBar(title = { Text("统计") }) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("统计") },
+                actions = {
+                    IconButton(onClick = { saveChartImage() }) {
+                        Icon(Icons.Filled.SaveAlt, contentDescription = "保存统计图为图片")
+                    }
+                }
+            )
+        }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -145,18 +209,47 @@ fun StatsScreen(
                 }
             }
 
-            when (state.chartType) {
-                StatsViewModel.CHART_PIE -> PieContent(state)
-                StatsViewModel.CHART_BAR -> BarContent(state, expenseColor, incomeColor)
-                StatsViewModel.CHART_CALENDAR -> CalendarContent(state, viewModel, expenseColor, incomeColor)
-                else -> LineContent(state, expenseColor, incomeColor)
+            // 同比环比（较上一周期）
+            val prevTotal = state.prevTotal
+            if (prevTotal != null && prevTotal > 0 && state.total > 0) {
+                val change = (state.total - prevTotal) * 100.0 / prevTotal
+                Text(
+                    text = "较上一周期 " + (if (change >= 0) "+" else "") +
+                        String.format(Locale.US, "%.1f%%", change),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (change >= 0) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                when (state.chartType) {
+                    StatsViewModel.CHART_PIE -> PieContent(state)
+                    StatsViewModel.CHART_BAR -> BarContent(state, expenseColor, incomeColor)
+                    StatsViewModel.CHART_CALENDAR -> CalendarContent(
+                        state,
+                        viewModel,
+                        expenseColor,
+                        incomeColor,
+                        onAddBillForDate
+                    )
+                    else -> LineContent(state, expenseColor, incomeColor)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ColumnScope.PieContent(state: StatsUiState) {
+private fun PieContent(state: StatsUiState) {
     if (state.slices.isEmpty()) {
         EmptyBox("该时间段暂无${state.typeLabel}记录")
         return
@@ -207,7 +300,7 @@ private fun ColumnScope.PieContent(state: StatsUiState) {
 }
 
 @Composable
-private fun ColumnScope.BarContent(state: StatsUiState, expenseColor: Color, incomeColor: Color) {
+private fun BarContent(state: StatsUiState, expenseColor: Color, incomeColor: Color) {
     if (!state.chartHasData) {
         EmptyBox("该时间段暂无收支记录")
         return
@@ -261,7 +354,7 @@ private fun ColumnScope.BarContent(state: StatsUiState, expenseColor: Color, inc
 }
 
 @Composable
-private fun ColumnScope.LineContent(state: StatsUiState, expenseColor: Color, incomeColor: Color) {
+private fun LineContent(state: StatsUiState, expenseColor: Color, incomeColor: Color) {
     if (!state.chartHasData) {
         EmptyBox("该时间段暂无收支记录")
         return
@@ -291,11 +384,12 @@ private fun ColumnScope.LineContent(state: StatsUiState, expenseColor: Color, in
 }
 
 @Composable
-private fun ColumnScope.CalendarContent(
+private fun CalendarContent(
     state: StatsUiState,
     viewModel: StatsViewModel,
     expenseColor: Color,
-    incomeColor: Color
+    incomeColor: Color,
+    onAddBillForDate: (Long) -> Unit
 ) {
     var selectedDay by remember { mutableStateOf<CalendarDay?>(null) }
     val circleColor = when (state.type) {
@@ -440,7 +534,13 @@ private fun ColumnScope.CalendarContent(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { selectedDay = null }) { Text("关闭") }
+                Row {
+                    TextButton(onClick = {
+                        selectedDay = null
+                        onAddBillForDate(day.date.toEpochDay())
+                    }) { Text("当天记一笔") }
+                    TextButton(onClick = { selectedDay = null }) { Text("关闭") }
+                }
             }
         )
     }
@@ -476,11 +576,9 @@ private fun ChartLegend(expenseColor: Color, incomeColor: Color) {
 }
 
 @Composable
-private fun ColumnScope.EmptyBox(title: String) {
+private fun EmptyBox(title: String) {
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f),
+        modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
         EmptyState(icon = Icons.Filled.PieChart, title = title)

@@ -63,7 +63,8 @@ data class StatsUiState(
     val chartWindowLabel: String = "",
     val chartHasData: Boolean = false,
     val calendarMonth: YearMonth = YearMonth.now(),
-    val calendarDays: List<CalendarDay> = emptyList()
+    val calendarDays: List<CalendarDay> = emptyList(),
+    val prevTotal: Long? = null
 ) {
     val typeLabel: String
         get() = when (type) {
@@ -115,6 +116,7 @@ class StatsViewModel(
                 val range = rangeFor(q.scale, q.anchor)
                 // 图表窗口（柱状/趋势共用）：年维度用逐月聚合，其余用逐日聚合
                 val year = q.anchor.year
+                val (prevStart, prevEnd) = prevRangeFor(q.scale, q.chartType, q.anchor)
                 combine(
                     billRepository.getCategoryStats(q.ledgerId, q.type, range.startDay, range.endDay),
                     billRepository.getMonthlyTotals(
@@ -122,8 +124,11 @@ class StatsViewModel(
                         LocalDate.of(year, 1, 1).toEpochDay(),
                         LocalDate.of(year, 12, 31).toEpochDay()
                     ),
-                    billRepository.getDailyTotals(q.ledgerId, dailyStart(q), dailyEnd(q))
-                ) { pie, monthly, daily -> QueryResult(range, q, pie, monthly, daily) }
+                    billRepository.getDailyTotals(q.ledgerId, dailyStart(q), dailyEnd(q)),
+                    billRepository.getMonthSummary(q.ledgerId, prevStart, prevEnd)
+                ) { pie, monthly, daily, prevSums ->
+                    QueryResult(range, q, pie, monthly, daily, prevSums)
+                }
             },
         categoryRepository.getAllCategories()
     ) { result, categories ->
@@ -149,6 +154,12 @@ class StatsViewModel(
             }
         }
 
+        val prevTotal = when (result.query.type) {
+            TYPE_INCOME -> result.prevSums.firstOrNull { it.type == Bill.TYPE_INCOME }?.total
+            TYPE_EXPENSE -> result.prevSums.firstOrNull { it.type == Bill.TYPE_EXPENSE }?.total
+            else -> result.prevSums.sumOf { it.total }.takeIf { result.prevSums.isNotEmpty() }
+        }
+
         StatsUiState(
             scale = scale.value,
             label = result.range.label,
@@ -161,7 +172,8 @@ class StatsViewModel(
             chartWindowLabel = chartWindowLabel(result.query),
             chartHasData = points.any { it.expense > 0 || it.income > 0 },
             calendarMonth = YearMonth.from(anchor.value),
-            calendarDays = buildCalendarDays(result)
+            calendarDays = buildCalendarDays(result),
+            prevTotal = prevTotal
         )
     }.stateIn(
         scope = viewModelScope,
@@ -199,6 +211,26 @@ class StatsViewModel(
     }
 
     // ---- 图表窗口 ----
+
+    /** 上一周期区间（同比环比用）：日→昨日，周→上周，月→上月，年→去年，日历→上月 */
+    private fun prevRangeFor(scale: Int, chartType: Int, anchor: LocalDate): Pair<Long, Long> {
+        return when {
+            chartType == CHART_CALENDAR ->
+                YearMonth.from(anchor).minusMonths(1).let { it.startEpochDay() to it.endEpochDay() }
+            scale == SCALE_DAY ->
+                anchor.minusDays(1).toEpochDay() to anchor.minusDays(1).toEpochDay()
+            scale == SCALE_WEEK -> {
+                val monday = anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(1)
+                monday.toEpochDay() to monday.plusDays(6).toEpochDay()
+            }
+            scale == SCALE_MONTH ->
+                YearMonth.from(anchor).minusMonths(1).let { it.startEpochDay() to it.endEpochDay() }
+            else -> {
+                val y = anchor.year - 1
+                LocalDate.of(y, 1, 1).toEpochDay() to LocalDate.of(y, 12, 31).toEpochDay()
+            }
+        }
+    }
 
     private fun dailyStart(q: StatsQuery): Long = when {
         q.chartType == CHART_CALENDAR -> YearMonth.from(q.anchor).startEpochDay()
@@ -300,7 +332,8 @@ private data class QueryResult(
     val query: StatsQuery,
     val sums: List<com.andersonlin.moneybook.data.db.BillDao.CategorySum>,
     val monthly: List<com.andersonlin.moneybook.data.db.BillDao.MonthlyTotal>,
-    val daily: List<com.andersonlin.moneybook.data.db.BillDao.DailyTotal>
+    val daily: List<com.andersonlin.moneybook.data.db.BillDao.DailyTotal>,
+    val prevSums: List<com.andersonlin.moneybook.data.db.BillDao.MonthSum>
 )
 
 private fun ymKey(year: Int, month: Int): String = "%04d-%02d".format(year, month)

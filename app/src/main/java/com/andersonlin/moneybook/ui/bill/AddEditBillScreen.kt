@@ -89,6 +89,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 fun AddEditBillScreen(
     billId: Long,
     defaultType: Int,
+    initialDate: Long = 0L,
     onBack: () -> Unit,
     viewModel: AddEditBillViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
@@ -101,7 +102,7 @@ fun AddEditBillScreen(
     val appContext = context.applicationContext
     val activity = remember(context) { context.findActivity() as? MainActivity }
 
-    LaunchedEffect(billId) { viewModel.init(billId, defaultType) }
+    LaunchedEffect(billId) { viewModel.init(billId, defaultType, initialDate) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->

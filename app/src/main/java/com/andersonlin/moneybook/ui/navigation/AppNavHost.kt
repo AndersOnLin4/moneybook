@@ -60,11 +60,11 @@ object Routes {
     const val REMINDER = "reminder"
     const val CATEGORY_BUDGET = "category_budget"
     const val ABOUT = "about"
-    const val ADD_EDIT = "add_edit?billId={billId}&type={type}"
+    const val ADD_EDIT = "add_edit?billId={billId}&type={type}&date={date}"
 
-    /** billId 为 null 或 -1 表示新增；type 为新账单默认类型（支出/收入） */
-    fun addEdit(billId: Long? = null, type: Int = Bill.TYPE_EXPENSE): String =
-        "add_edit?billId=${billId ?: -1L}&type=$type"
+    /** billId 为 null 或 -1 表示新增；type 为新账单默认类型；date 为预填日期（0=今天） */
+    fun addEdit(billId: Long? = null, type: Int = Bill.TYPE_EXPENSE, date: Long = 0L): String =
+        "add_edit?billId=${billId ?: -1L}&type=$type&date=$date"
 }
 
 private data class TopDestination(
@@ -144,7 +144,11 @@ fun AppRoot(addEvents: Flow<Unit> = emptyFlow()) {
                 )
             }
             composable(Routes.STATS) {
-                StatsScreen()
+                StatsScreen(
+                    onAddBillForDate = { date ->
+                        navController.navigate(Routes.addEdit(date = date))
+                    }
+                )
             }
             composable(Routes.SETTINGS) {
                 SettingsScreen(
@@ -170,14 +174,20 @@ fun AppRoot(addEvents: Flow<Unit> = emptyFlow()) {
                     navArgument("type") {
                         type = NavType.IntType
                         defaultValue = Bill.TYPE_EXPENSE
+                    },
+                    navArgument("date") {
+                        type = NavType.LongType
+                        defaultValue = 0L
                     }
                 )
             ) { entry ->
                 val billId = entry.arguments?.getLong("billId") ?: -1L
                 val type = entry.arguments?.getInt("type") ?: Bill.TYPE_EXPENSE
+                val date = entry.arguments?.getLong("date") ?: 0L
                 AddEditBillScreen(
                     billId = billId,
                     defaultType = type,
+                    initialDate = date,
                     onBack = { navController.popBackStack() }
                 )
             }
