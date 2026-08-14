@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 移除 Glance 库自动合并的网络状态权限，保证应用完全无网络权限 -->
+    <uses-permission
+        android:name="android.permission.ACCESS_NETWORK_STATE"
+        tools:node="remove" />
 
     <!-- 注意：本应用未声明任何权限（无网络、无存储权限，备份导入导出使用系统文件选择器 SAF） -->
     <application
