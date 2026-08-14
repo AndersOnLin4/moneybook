@@ -133,9 +133,25 @@ fun LockSettingsScreen(
                     }
                     if (biometricAvailable) {
                         SwitchRow(
-                            title = "指纹解锁",
-                            checked = settings.biometricEnabled,
+                            title = "指纹解锁（需先设置密码）",
+                            checked = settings.hasPin && settings.biometricEnabled,
+                            enabled = settings.hasPin,
                             onCheckedChange = viewModel::setBiometricEnabled
+                        )
+                        if (!settings.hasPin) {
+                            Text(
+                                text = "请先开启应用锁并设置密码，才能使用指纹解锁。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "本机未检测到可用的指纹硬件。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
                 }
@@ -167,7 +183,12 @@ fun LockSettingsScreen(
 }
 
 @Composable
-private fun SwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun SwitchRow(
+    title: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -177,9 +198,11 @@ private fun SwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface
+            else MaterialTheme.colorScheme.outline,
             modifier = Modifier.weight(1f)
         )
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }
 

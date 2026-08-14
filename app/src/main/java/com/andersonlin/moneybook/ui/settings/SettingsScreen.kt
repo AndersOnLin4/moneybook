@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Upload
@@ -66,6 +67,8 @@ fun SettingsScreen(
     onManageBudget: () -> Unit,
     onManageRecurring: () -> Unit,
     onManageLedgers: () -> Unit,
+    onManageGoals: () -> Unit,
+    onManageReminder: () -> Unit,
     onLockSettings: () -> Unit,
     onAbout: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory)
@@ -159,6 +162,8 @@ fun SettingsScreen(
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.EventRepeat, "周期账单", onManageRecurring)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    SettingsRow(Icons.Filled.Savings, "存钱目标", onManageGoals)
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(
                         Icons.Filled.TableChart,
                         "导出账单 CSV（Excel 可打开）"
@@ -187,6 +192,8 @@ fun SettingsScreen(
             ) {
                 Column {
                     SettingsRow(Icons.Filled.Lock, "应用锁（密码 / 指纹）", onLockSettings)
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    SettingsRow(Icons.Filled.Notifications, "记账提醒（每日通知）", onManageReminder)
                 }
             }
 

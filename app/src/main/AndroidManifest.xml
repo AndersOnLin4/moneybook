@@ -7,6 +7,9 @@
         android:name="android.permission.ACCESS_NETWORK_STATE"
         tools:node="remove" />
 
+    <!-- 记账提醒的本地通知（Android 13+ 运行时请求） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- 注意：本应用未声明任何权限（无网络、无存储权限，备份导入导出使用系统文件选择器 SAF） -->
     <application
         android:name=".MoneyBookApp"

@@ -33,10 +33,12 @@ import com.andersonlin.moneybook.ui.bill.AddEditBillScreen
 import com.andersonlin.moneybook.ui.bill.BillListScreen
 import com.andersonlin.moneybook.ui.budget.BudgetScreen
 import com.andersonlin.moneybook.ui.category.CategoryScreen
+import com.andersonlin.moneybook.ui.goal.GoalScreen
 import com.andersonlin.moneybook.ui.home.HomeScreen
 import com.andersonlin.moneybook.ui.ledger.LedgerScreen
 import com.andersonlin.moneybook.ui.lock.LockSettingsScreen
 import com.andersonlin.moneybook.ui.recurring.RecurringScreen
+import com.andersonlin.moneybook.ui.reminder.ReminderScreen
 import com.andersonlin.moneybook.ui.settings.AboutScreen
 import com.andersonlin.moneybook.ui.settings.SettingsScreen
 import com.andersonlin.moneybook.ui.stats.StatsScreen
@@ -53,6 +55,8 @@ object Routes {
     const val RECURRING = "recurring"
     const val LOCK = "lock"
     const val LEDGERS = "ledgers"
+    const val GOALS = "goals"
+    const val REMINDER = "reminder"
     const val ABOUT = "about"
     const val ADD_EDIT = "add_edit?billId={billId}&type={type}"
 
@@ -146,6 +150,8 @@ fun AppRoot(addEvents: Flow<Unit> = emptyFlow()) {
                     onManageBudget = { navController.navigate(Routes.BUDGET) },
                     onManageRecurring = { navController.navigate(Routes.RECURRING) },
                     onManageLedgers = { navController.navigate(Routes.LEDGERS) },
+                    onManageGoals = { navController.navigate(Routes.GOALS) },
+                    onManageReminder = { navController.navigate(Routes.REMINDER) },
                     onLockSettings = { navController.navigate(Routes.LOCK) },
                     onAbout = { navController.navigate(Routes.ABOUT) }
                 )
@@ -188,6 +194,12 @@ fun AppRoot(addEvents: Flow<Unit> = emptyFlow()) {
             }
             composable(Routes.LEDGERS) {
                 LedgerScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.GOALS) {
+                GoalScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.REMINDER) {
+                ReminderScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.ABOUT) {
                 AboutScreen(onBack = { navController.popBackStack() })

@@ -3,6 +3,8 @@ package com.andersonlin.moneybook
 import android.app.Application
 import com.andersonlin.moneybook.data.backup.BackupManager
 import com.andersonlin.moneybook.data.db.AppDatabase
+import com.andersonlin.moneybook.data.reminder.ReminderRepository
+import com.andersonlin.moneybook.data.reminder.ReminderScheduler
 import com.andersonlin.moneybook.data.repository.AccountRepository
 import com.andersonlin.moneybook.data.repository.BillRepository
 import com.andersonlin.moneybook.data.repository.BudgetRepository
@@ -16,6 +18,7 @@ import com.andersonlin.moneybook.widget.MoneyBookWidget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** 应用入口：集中创建数据库与仓库，供 ViewModel 工厂取用 */
@@ -37,6 +40,7 @@ class MoneyBookApp : Application() {
     val goalRepository: GoalRepository by lazy { GoalRepository(database.goalDao()) }
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
     val lockSettingsRepository: LockSettingsRepository by lazy { LockSettingsRepository(this) }
+    val reminderRepository: ReminderRepository by lazy { ReminderRepository(this) }
     val backupManager: BackupManager by lazy { BackupManager(this, database) }
 
     override fun onCreate() {
@@ -44,6 +48,15 @@ class MoneyBookApp : Application() {
         // 启动时补记到期的周期账单（失败不影响使用）
         applicationScope.launch {
             runCatching { recurringRepository.generateDue() }
+        }
+        // 启动时同步记账提醒调度（已开启则按设定时间重新调度）
+        applicationScope.launch {
+            runCatching {
+                val s = reminderRepository.settings.first()
+                if (s.enabled) {
+                    ReminderScheduler.schedule(this@MoneyBookApp, s.hour, s.minute)
+                }
+            }
         }
     }
 

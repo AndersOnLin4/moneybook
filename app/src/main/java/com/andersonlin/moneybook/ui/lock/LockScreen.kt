@@ -96,6 +96,17 @@ fun LockScreen(
         }
     }
 
+    // 已设置密码且启用指纹时，进入锁屏自动唤起指纹验证（无需点击）
+    LaunchedEffect(settings) {
+        if (activity != null && settings.hasPin && settings.biometricEnabled) {
+            showBiometricPrompt(
+                activity = activity,
+                onError = { error = it },
+                onSuccess = onUnlocked
+            )
+        }
+    }
+
     fun append(digit: Char) {
         if (entered.length < 6) {
             entered += digit

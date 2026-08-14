@@ -106,5 +106,8 @@ dependencies {
     // 桌面小组件（Jetpack Glance，免费）
     implementation(libs.androidx.glance.appwidget)
 
+    // 记账提醒（Jetpack WorkManager，本地通知，免费）
+    implementation(libs.androidx.work.runtime.ktx)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
