@@ -14,6 +14,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -24,6 +25,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import com.andersonlin.moneybook.data.model.Bill
 import com.andersonlin.moneybook.ui.account.AccountScreen
 import com.andersonlin.moneybook.ui.bill.AddEditBillScreen
@@ -70,11 +73,18 @@ private val topDestinations = listOf(
 )
 
 @Composable
-fun AppRoot() {
+fun AppRoot(addEvents: Flow<Unit> = emptyFlow()) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val showBottomBar = topDestinations.any { it.route == currentRoute }
+
+    // 小组件「记一笔」等外部请求 → 跳转记一笔页面
+    LaunchedEffect(Unit) {
+        addEvents.collect {
+            navController.navigate(Routes.addEdit())
+        }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),

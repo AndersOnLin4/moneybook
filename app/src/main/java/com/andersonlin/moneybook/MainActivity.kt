@@ -1,5 +1,6 @@
 package com.andersonlin.moneybook
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,18 +16,29 @@ import com.andersonlin.moneybook.data.settings.ThemeMode
 import com.andersonlin.moneybook.ui.lock.LockScreen
 import com.andersonlin.moneybook.ui.navigation.AppRoot
 import com.andersonlin.moneybook.ui.theme.MoneyBookTheme
+import com.andersonlin.moneybook.widget.MoneyBookWidget
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        /** 小组件「记一笔」按钮携带的 Intent extra */
+        const val EXTRA_OPEN_ADD = "extra_open_add"
+    }
+
     private val lockVisible = mutableStateOf(false)
     private var wentBackground = true
+
+    /** 小组件等外部入口请求打开「记一笔」页面 */
+    val addRequestEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleIntent(intent)
         val app = application as MoneyBookApp
         val settingsRepository = app.settingsRepository
         val lockSettingsRepository = app.lockSettingsRepository
@@ -45,9 +57,21 @@ class MainActivity : ComponentActivity() {
                     lockVisible.value && lockEnabled == true -> {
                         LockScreen(onUnlocked = { lockVisible.value = false })
                     }
-                    else -> AppRoot()
+                    else -> AppRoot(addEvents = addRequestEvents)
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_ADD, false) == true) {
+            intent.removeExtra(EXTRA_OPEN_ADD)
+            addRequestEvents.tryEmit(Unit)
         }
     }
 
@@ -64,6 +88,10 @@ class MainActivity : ComponentActivity() {
             }
         }
         wentBackground = false
+        // 刷新桌面小组件数据
+        lifecycleScope.launch {
+            MoneyBookWidget.updateAllWidgets(this@MainActivity)
+        }
     }
 
     override fun onStop() {
