@@ -1,6 +1,8 @@
 package com.andersonlin.moneybook
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,6 +37,87 @@ class MainActivity : FragmentActivity() {
 
         /** requestCode 合法上限（FragmentActivity 要求低 16 位） */
         private const val MAX_REQUEST_CODE = 0xFFFF
+
+        /** 通知权限请求的固定 requestCode（绕开 activity 库的随机 requestCode 缺陷） */
+        private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 0x1111
+
+        /** 创建文档（导出）的固定 requestCode */
+        private const val CREATE_DOCUMENT_REQUEST_CODE = 0x2222
+
+        /** 打开文档（导入）的固定 requestCode */
+        private const val OPEN_DOCUMENT_REQUEST_CODE = 0x3333
+    }
+
+    private var pendingPermissionCallback: ((Boolean) -> Unit)? = null
+    private var pendingCreateDocumentCallback: ((android.net.Uri?) -> Unit)? = null
+    private var pendingOpenDocumentCallback: ((android.net.Uri?) -> Unit)? = null
+
+    /**
+     * 请求通知权限。使用固定的小 requestCode 直接调用，绕开
+     * androidx.activity 1.9.0 权限请求路径生成超大随机 requestCode 的缺陷
+     * （HyperOS 上会导致 "Can only use lower 16 bits for requestCode" 崩溃）。
+     */
+    fun requestNotificationPermission(callback: (Boolean) -> Unit) {
+        pendingPermissionCallback = callback
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+            NOTIFICATION_PERMISSION_REQUEST_CODE
+        )
+    }
+
+    /** 弹出系统「另存为」对话框创建文档（导出用），固定 requestCode 避免库缺陷 */
+    fun createDocument(mimeType: String, suggestedName: String, callback: (android.net.Uri?) -> Unit) {
+        pendingCreateDocumentCallback = callback
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mimeType
+            putExtra(Intent.EXTRA_TITLE, suggestedName)
+        }
+        startActivityForResult(intent, CREATE_DOCUMENT_REQUEST_CODE)
+    }
+
+    /** 弹出系统文件选择器（导入用），固定 requestCode 避免库缺陷 */
+    fun openDocument(callback: (android.net.Uri?) -> Unit) {
+        pendingOpenDocumentCallback = callback
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("application/json", "text/json", "text/plain", "application/octet-stream")
+            )
+        }
+        startActivityForResult(intent, OPEN_DOCUMENT_REQUEST_CODE)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        val uri = if (resultCode == RESULT_OK) data?.data else null
+        when (requestCode) {
+            CREATE_DOCUMENT_REQUEST_CODE -> {
+                pendingCreateDocumentCallback?.invoke(uri)
+                pendingCreateDocumentCallback = null
+            }
+            OPEN_DOCUMENT_REQUEST_CODE -> {
+                pendingOpenDocumentCallback?.invoke(uri)
+                pendingOpenDocumentCallback = null
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE) {
+            val granted = grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED
+            pendingPermissionCallback?.invoke(granted)
+            pendingPermissionCallback = null
+        }
     }
 
     /**

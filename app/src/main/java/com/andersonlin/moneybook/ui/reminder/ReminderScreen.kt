@@ -1,14 +1,14 @@
 package com.andersonlin.moneybook.ui.reminder
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,8 +48,16 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.andersonlin.moneybook.MainActivity
 import com.andersonlin.moneybook.data.reminder.ReminderScheduler
 import com.andersonlin.moneybook.ui.AppViewModelProvider
+
+/** 从任意 Context 向上找 Activity（LocalContext 可能被包装） */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 /** 记账提醒：每日定时本地通知 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,18 +71,6 @@ fun ReminderScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showTimePicker by remember { mutableStateOf(false) }
 
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            viewModel.setEnabled(true)
-            ReminderScheduler.schedule(context, settings.hour, settings.minute)
-            viewModel.emit("记账提醒已开启，每天 %02d:%02d 提醒".format(settings.hour, settings.minute))
-        } else {
-            viewModel.emit("未授予通知权限，无法开启提醒（可在系统设置中手动允许）")
-        }
-    }
-
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
@@ -84,11 +80,27 @@ fun ReminderScreen(
     }
 
     fun enableReminder() {
+        val activity = context.findActivity() as? MainActivity
+        if (activity == null) {
+            viewModel.emit("无法获取页面，请重试")
+            return
+        }
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            // 用 MainActivity 的固定 requestCode 权限请求，绕开 activity 库缺陷
+            activity.requestNotificationPermission { granted ->
+                if (granted) {
+                    viewModel.setEnabled(true)
+                    ReminderScheduler.schedule(context, settings.hour, settings.minute)
+                    viewModel.emit(
+                        "记账提醒已开启，每天 %02d:%02d 提醒".format(settings.hour, settings.minute)
+                    )
+                } else {
+                    viewModel.emit("未授予通知权限，无法开启提醒（可在系统设置中手动允许）")
+                }
+            }
         } else {
             viewModel.setEnabled(true)
             ReminderScheduler.schedule(context, settings.hour, settings.minute)

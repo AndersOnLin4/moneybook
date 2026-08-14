@@ -1,7 +1,8 @@
 package com.andersonlin.moneybook.ui.settings
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,13 +52,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.andersonlin.moneybook.MainActivity
 import com.andersonlin.moneybook.data.settings.ThemeMode
 import com.andersonlin.moneybook.ui.AppViewModelProvider
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+
+/** 从任意 Context 向上找 Activity（LocalContext 可能被包装） */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +85,7 @@ fun SettingsScreen(
 ) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showImportConfirm by remember { mutableStateOf(false) }
     var showCsvLedgerDialog by remember { mutableStateOf(false) }
@@ -84,18 +95,9 @@ fun SettingsScreen(
     val csvFileName = "moneybook_bills_" +
         LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".csv"
 
-    val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri -> uri?.let { viewModel.exportBackup(it) } }
-
+    // 通过 MainActivity 的固定 requestCode 文件选择（绕开 activity 库的随机 requestCode 缺陷）
+    val activity = remember(context) { context.findActivity() as? MainActivity }
     var csvLedgerId by remember { mutableStateOf(1L) }
-    val csvLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/csv")
-    ) { uri -> uri?.let { viewModel.exportCsv(it, csvLedgerId) } }
-
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri -> uri?.let { viewModel.importBackup(it) } }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -160,7 +162,11 @@ fun SettingsScreen(
                     SettingsRow(
                         Icons.Filled.Upload,
                         "导出备份（JSON）"
-                    ) { exportLauncher.launch(exportFileName) }
+                    ) { 
+                        activity?.createDocument("application/json", exportFileName) { uri ->
+                            uri?.let { viewModel.exportBackup(it) }
+                        }
+                    }
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                     SettingsRow(Icons.Filled.Download, "导入恢复备份") {
                         showImportConfirm = true
@@ -243,14 +249,9 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showImportConfirm = false
-                    importLauncher.launch(
-                        arrayOf(
-                            "application/json",
-                            "text/json",
-                            "text/plain",
-                            "application/octet-stream"
-                        )
-                    )
+                    activity?.openDocument { uri ->
+                        uri?.let { viewModel.importBackup(it) }
+                    }
                 }) { Text("继续") }
             },
             dismissButton = {
@@ -272,7 +273,12 @@ fun SettingsScreen(
                                 .clickable {
                                     csvLedgerId = ledger.id
                                     showCsvLedgerDialog = false
-                                    csvLauncher.launch(csvFileName.replace(".csv", "_L${ledger.id}.csv"))
+                                    activity?.createDocument(
+                                        "text/csv",
+                                        csvFileName.replace(".csv", "_L${ledger.id}.csv")
+                                    ) { uri ->
+                                        uri?.let { viewModel.exportCsv(it, csvLedgerId) }
+                                    }
                                 }
                                 .padding(vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
