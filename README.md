@@ -2,7 +2,7 @@
 
 > 一款**零网络、零账号、零广告**的本地记账应用 —— 你的每一笔账，只属于你的手机。
 
-[![Release](https://img.shields.io/badge/Release-v1.4.0-brightgreen)](https://github.com/AndersOnLin4/moneybook/releases/latest)
+[![Release](https://img.shields.io/badge/Release-v1.5.1-brightgreen)](https://github.com/AndersOnLin4/moneybook/releases/latest)
 ![Android](https://img.shields.io/badge/Android-9.0%2B-3DDC84)
 ![License](https://img.shields.io/badge/License-All%20Rights%20Reserved-lightgrey)
 
