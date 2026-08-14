@@ -3,6 +3,7 @@ package com.andersonlin.moneybook.ui.settings
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import com.andersonlin.moneybook.BuildConfig
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -270,7 +271,7 @@ fun SettingsScreen(
             }
 
             Text(
-                text = "版本 1.7.0 · 所有数据仅保存在本机，应用不申请网络权限",
+                text = "版本 ${BuildConfig.VERSION_NAME} · 所有数据仅保存在本机，应用不申请网络权限",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -297,7 +298,7 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = "v1.7.0",
+                            text = "v${BuildConfig.VERSION_NAME}",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.outline
                         )

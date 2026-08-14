@@ -20,8 +20,8 @@ android {
         applicationId = "com.andersonlin.moneybook"
         minSdk = 28
         targetSdk = 34
-        versionCode = 18
-        versionName = "1.7.0"
+        versionCode = 19
+        versionName = "1.7.1"
     }
 
     signingConfigs {
@@ -62,6 +62,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
